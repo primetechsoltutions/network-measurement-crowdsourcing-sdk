@@ -52,7 +52,13 @@ class FTPNetworkDataWorker(
             withTimeout(60000) { // Global 60-second timeout
                 // 1. Initial Validations (Permissions, IP Connectivity, SIM)
                 val validationError = performPreFlightChecks()
-                if (validationError != null) return@withTimeout validationError
+                if (validationError != null) {
+                    logValidationFailure(
+                        "Pre-flight checks failed: See detailed logs",
+                        "FTP_PREFLIGHT_FAILURE"
+                    )
+                    return@withTimeout validationError
+                }
                 
                 // 1.5 Sync Thresholds if necessary
                 updateThresholdsIfNeeded()
@@ -64,10 +70,22 @@ class FTPNetworkDataWorker(
 
                 // 2.5 Technology Validation (Restricted to 4G)
                 if (ftpData.technologyType == "NON_4G_IGNORED") {
-                    Log.w(TAG, "FTP Capture ignored: Not on 4G network")
+                    val msg = "FTP Capture ignored: Not on Banglalink 4G network"
+                    Log.w(TAG, msg)
+                    logValidationFailure(msg, "FTP_CAPTURE_NOT_4G")
                     return@withTimeout returnResultToHost(
                         "Failed", "Failed", 400,
-                        "FTP Capture is only supported on 4G (LTE) technology.", null
+                        "FTP Capture is only supported on Banglalink 4G (LTE) technology.", null
+                    )
+                }
+
+                if (ftpData.technologyType == "SKIP_MNC_MISMATCH") {
+                    val msg = "FTP Capture ignored: MNC Mismatch (Not Banglalink)"
+                    Log.w(TAG, msg)
+                    logValidationFailure(msg, "FTP_CAPTURE_MNC_MISMATCH")
+                    return@withTimeout returnResultToHost(
+                        "Failed", "Failed", 400,
+                        "Banglalink SIM and mobile data must be enabled for FTP Capture.", null
                     )
                 }
 
@@ -240,35 +258,60 @@ class FTPNetworkDataWorker(
         val isMobileConnected = isMobileNetworkConnected()
         val activeMnc = if (isMobileConnected) getActiveNetworkMNC() else "-1"
 
-        if (isMobileConnected && activeMnc.removePrefix("0") != "3") {
+        Log.d(TAG, "getCapturedNetworkData: activeMnc=$activeMnc, isMobileConnected=$isMobileConnected")
+
+        // 1. Initial MNC Check (Active Subscription)
+        val activeMncClean = activeMnc.removePrefix("0")
+        if (isMobileConnected && activeMncClean != "3") {
+            Log.w(TAG, "Active MNC mismatch: expected 3, got $activeMnc")
             return FTPNetworkDataEntity().apply { technologyType = "SKIP_MNC_MISMATCH" }
         }
 
         val cells = try {
             if (hasRequiredPermissions()) NetMonsterFactory.get(applicationContext).getCells() else null
         } catch (e: Exception) {
+            Log.e(TAG, "Error fetching cells: ${e.message}")
             null
         }
 
-        if (cells.isNullOrEmpty()) return FTPNetworkDataEntity()
+        if (cells.isNullOrEmpty()) {
+            Log.w(TAG, "No cells detected by NetMonster")
+            return FTPNetworkDataEntity()
+        }
 
+        var foundNon4gBanglalink = false
+
+        // 2. Iterate through all detected cells to find a Primary Banglalink 4G Cell
         for (cell in cells) {
             if (cell.connectionStatus is PrimaryConnection) {
-                // Validation: Only allow 4G (LTE)
-                if (cell !is cz.mroczis.netmonster.core.model.cell.CellLte) {
-                    return FTPNetworkDataEntity().apply { technologyType = "NON_4G_IGNORED" }
-                }
+                val cellMnc = cell.network?.mnc?.toString()?.removePrefix("0") ?: ""
+                val isBanglalink = cellMnc == "3"
+                val isLte = cell is cz.mroczis.netmonster.core.model.cell.CellLte
 
-                val cellMnc = cell.network?.mnc ?: ""
-                if (cellMnc.removePrefix("0") == "3") {
-                    return cell.prepareFTPData(
-                        locationPair, downloader, isMobileConnected, activeMnc,
-                        getSimCount(), applicationContext
-                    )
+                Log.d(TAG, "Inspecting Primary Cell: type=${cell.javaClass.simpleName}, mnc=$cellMnc, isLte=$isLte, isBL=$isBanglalink")
+
+                if (isBanglalink) {
+                    if (isLte) {
+                        Log.i(TAG, "✅ Found valid Banglalink 4G Primary Cell")
+                        return (cell as cz.mroczis.netmonster.core.model.cell.CellLte).prepareFTPData(
+                            locationPair, downloader, isMobileConnected, activeMnc,
+                            getSimCount(), applicationContext
+                        )
+                    } else {
+                        Log.d(TAG, "Found Banglalink Primary cell but it is NOT 4G (Technology: ${cell.javaClass.simpleName})")
+                        foundNon4gBanglalink = true
+                    }
                 }
             }
         }
-        return FTPNetworkDataEntity()
+
+        return if (foundNon4gBanglalink) {
+            Log.w(TAG, "❌ No Banglalink 4G cell found, only lower technologies detected")
+            FTPNetworkDataEntity().apply { technologyType = "NON_4G_IGNORED" }
+        } else {
+            Log.w(TAG, "❌ No Banglalink primary connection detected in cell list")
+            FTPNetworkDataEntity()
+        }
     }
 
     private fun processAndReturnFinalResult(ftpData: FTPNetworkDataEntity, assessmentId: Long): Result {
@@ -327,6 +370,24 @@ class FTPNetworkDataWorker(
         } catch (e: Exception) {
             Log.e(TAG, "Threshold Update failed: ${e.message}")
         }
+    }
+
+    private suspend fun logValidationFailure(message: String, errorCode: String) {
+        val auth = getAuth()
+        val eventName = inputData.getString("integratedAppEventName") ?: "Event"
+        
+        val eventLogModel = NetworkEventLogger.createNetworkRequestFailedLog(
+            auth.hostAppName, eventName, message, "Validation Logic Rejection: $errorCode", 400
+        ).apply {
+            msisdn = inputData.getString("msisdn") ?: ""
+            integratedAppVersion = inputData.getString("integratedAppVersion") ?: ""
+            sdkInitiateTimeStamp = inputData.getString("sdkInitiateTimeStamp") ?: ""
+            integratedAppEventName = eventName
+            userLatitude = inputData.getDouble("userLatitude", 0.0)
+            userLongitude = inputData.getDouble("userLongitude", 0.0)
+        }
+
+        preparedLogEventData(auth, eventLogModel)
     }
 
     private suspend fun logError(e: Exception, errorCodePrefix: String, eventName: String) {
