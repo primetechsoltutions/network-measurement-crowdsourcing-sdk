@@ -416,19 +416,25 @@ private fun removeNullFromString(str: String): Int {
     }
 }
 
-private fun calculateRXQUAL(ber: Int): Int {
-    return when {
-        ber >= 0 && ber < 0.2 -> 0
-        ber >= 0.2 && ber < 0.4 -> 1
-        ber >= 0.4 && ber < 0.8 -> 2
-        ber >= 0.8 && ber < 1.6 -> 3
-        ber >= 1.6 && ber < 3.2 -> 4
-        ber >= 3.2 && ber < 6.4 -> 5
-        ber >= 6.4 && ber < 12.8 -> 6
-        ber >= 12.8 && ber <= 100 -> 7
-        else -> 0
-    }
-}
+ private fun calculateRXQUAL(ber: Int): Int {
+     // NetMonster/Android delivers bitErrorRate as the mapped RXQUAL index (0-7) as per 3GPP TS 45.008.
+     // The previous implementation incorrectly treated this index as a raw BER percentage.
+     return if (ber in 0..7) ber else 0
+ }
+
+//private fun calculateRXQUAL(ber: Int): Int {
+//    return when {
+//        ber >= 0 && ber < 0.2 -> 0
+//        ber >= 0.2 && ber < 0.4 -> 1
+//        ber >= 0.4 && ber < 0.8 -> 2
+//        ber >= 0.8 && ber < 1.6 -> 3
+//        ber >= 1.6 && ber < 3.2 -> 4
+//        ber >= 3.2 && ber < 6.4 -> 5
+//        ber >= 6.4 && ber < 12.8 -> 6
+//        ber >= 12.8 && ber <= 100 -> 7
+//        else -> 0
+//    }
+//}
 
 fun isUserOnCall(context: Context): Boolean {
     return try {

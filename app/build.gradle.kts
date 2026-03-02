@@ -63,11 +63,9 @@ dependencies {
     androidTestImplementation(libs.androidx.espresso.core)
 
     implementation(project(mapOf("path" to ":network-sdk")))
-//    implementation("com.ptsl:net-monitor:1.0.19")
-//    implementation("com.github.primetechsoltutions:mybl-network-measurement-sdk:Test-1.0.2")
-//    implementation("com.github.primetechsoltutions:mybl-network-measurement-sdk:Live-1.0.4")
+//    implementation("com.github.primetechsoltutions:network-measurement-unified-sdk:Test-1.0.0")
 
-    implementation("com.google.android.gms:play-services-location:21.3.0")
+    implementation(libs.play.services.location)
     implementation("com.github.PhilJay:MPAndroidChart:v3.1.0")
 
 

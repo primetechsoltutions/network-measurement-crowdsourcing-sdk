@@ -28,7 +28,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-        networkDataUploader.init(this, "ReTaiLer")
+        networkDataUploader.init(this, "MyBL")
 
 //        val currentDate =
 //            SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
@@ -96,6 +96,20 @@ class MainActivity : AppCompatActivity() {
     private fun displayChart(jsonData: String) {
         try {
             val jsonObject = JSONObject(jsonData)
+            val testResult = jsonObject.optString("testResult", "N/A")
+            val assessmentStatusTextView = findViewById<android.widget.TextView>(R.id.assessmentStatusTextView)
+            val assessmentResultCard = findViewById<android.view.View>(R.id.assessmentResultCard)
+
+            assessmentResultCard.visibility = android.view.View.VISIBLE
+            assessmentStatusTextView.text = testResult
+            if (testResult.equals("Pass", ignoreCase = true)) {
+                assessmentStatusTextView.setTextColor(android.graphics.Color.parseColor("#2E7D32")) // Green
+            } else if (testResult.equals("Failed", ignoreCase = true)) {
+                assessmentStatusTextView.setTextColor(android.graphics.Color.parseColor("#C62828")) // Red
+            } else {
+                assessmentStatusTextView.setTextColor(android.graphics.Color.DKGRAY)
+            }
+
             val data = jsonObject.optJSONObject("data") ?: return
 
             setupSignalChart(data.optJSONObject("networkData"))

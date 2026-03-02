@@ -51,13 +51,11 @@ class FTPNetworkDataWorker(
         return try {
             withTimeout(60000) { // Global 60-second timeout
                 // 1. Initial Validations (Permissions, IP Connectivity, SIM)
-                val validationError = performPreFlightChecks()
-                if (validationError != null) {
-                    logValidationFailure(
-                        "Pre-flight checks failed: See detailed logs",
-                        "FTP_PREFLIGHT_FAILURE"
-                    )
-                    return@withTimeout validationError
+                val preFlightError = performPreFlightChecks()
+                if (preFlightError != null) {
+                    val (msg, code, status) = preFlightError
+                    logValidationFailure(msg, code)
+                    return@withTimeout returnResultToHost("Failed", "Failed", status, msg, null)
                 }
                 
                 // 1.5 Sync Thresholds if necessary
@@ -127,31 +125,36 @@ class FTPNetworkDataWorker(
         }
     }
 
-    private fun performPreFlightChecks(): Result? {
+    private fun performPreFlightChecks(): Triple<String, String, Int>? {
         // Permission Check
         if (!hasRequiredPermissions()) {
             Log.w(TAG, "Missing required permissions for FTP Capture")
-            return returnResultToHost(
-                "Failed", "Failed", 400,
-                "Permission are required for FTP Capture", null
-            )
+            return Triple("Permission are required for FTP Capture", "FTP_PERMISSION_DENIED", 400)
         }
 
         // Internet Connectivity Check
         if (!isInternetAvailable()) {
             Log.w(TAG, "No internet access for diagnostic capture")
-            return returnResultToHost(
-                "Failed", "Failed", 400,
-                "Internet connectivity is mandatory for network assessment.", null
+            return Triple("Internet connectivity is mandatory for network assessment.", "FTP_INTERNET_UNAVAILABLE", 400)
+        }
+
+        // Mobile Data Connection Check
+        if (!isMobileNetworkConnected()) {
+            Log.w(TAG, "Mobile data not connected for diagnostic capture")
+            return Triple(
+                "Mobile data connection is required for FTP Capture. Please disable Wi-Fi and enable mobile data.",
+                "FTP_MOBILE_DATA_REQUIRED",
+                400
             )
         }
 
         // Banglalink SIM and Mobile Data Check
         if (!isBanglalinkDataEnabled()) {
             Log.w(TAG, "Banglalink data not active or SIM mismatch")
-            return returnResultToHost(
-                "Failed", "Failed", 400,
-                "Banglalink SIM and mobile data must be enabled for FTP Capture.", null
+            return Triple(
+                "Banglalink SIM and mobile data must be enabled for FTP Capture.",
+                "FTP_BANGLALINK_DATA_UNAVAILABLE",
+                400
             )
         }
 

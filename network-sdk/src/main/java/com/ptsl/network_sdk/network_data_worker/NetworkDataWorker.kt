@@ -71,6 +71,7 @@ class NetworkDataWorker(
                 data.sdkInitiateTimeStamp = sdkInitiateTimeStamp
                 data.userLatitude = userLatitude
                 data.userLongitude = userLongitude
+                data.integratedAppVersion=integratedAppVersion
                 newDataList.add(data)
             }
 
