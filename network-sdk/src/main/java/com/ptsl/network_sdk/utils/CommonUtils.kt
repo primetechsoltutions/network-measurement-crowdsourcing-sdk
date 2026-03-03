@@ -9,6 +9,7 @@ import kotlin.math.roundToInt
 object CommonUtils {
 
     private const val DATE_TIME_FORMAT = "yyyy-MM-dd'T'HH:mm:ss"
+    private const val DATE_ONLY_FORMAT = "yyyy-MM-dd"
 
     /** Returns current date-time in ISO-like format */
     fun getCurrentDateTime(): String {
@@ -16,9 +17,10 @@ object CommonUtils {
             .format(Date())
     }
 
-    /** Returns only date-time (kept for backward compatibility if needed) */
+    /** Returns only date (yyyy-MM-dd) */
     fun getCurrentDate(): String {
-        return getCurrentDateTime()
+        return SimpleDateFormat(DATE_ONLY_FORMAT, Locale.US)
+            .format(Date())
     }
 
     /** Round double to exactly 2 decimal places */

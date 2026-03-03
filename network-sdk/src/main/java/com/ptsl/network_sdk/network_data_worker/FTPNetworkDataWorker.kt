@@ -25,6 +25,7 @@ import com.ptsl.network_sdk.data_model.logger.EventLogModel
 import com.ptsl.network_sdk.data_model.logger.LogDataWrapper
 import com.ptsl.network_sdk.db.NetworkDao
 import com.ptsl.network_sdk.dl_ul_test.DownloadUploadHelper
+import com.ptsl.network_sdk.utils.CommonUtils
 import com.ptsl.network_sdk.utils.NetworkEventLogger
 import com.ptsl.network_sdk.utils.prepareFTPData
 import cz.mroczis.netmonster.core.factory.NetMonsterFactory
@@ -378,13 +379,13 @@ class FTPNetworkDataWorker(
     private suspend fun updateThresholdsIfNeeded() {
         try {
             val cached = databaseDao.getFTPThresholds()
-            val shouldFetch = cached == null || (System.currentTimeMillis() - cached.lastUpdated > 24 * 60 * 60 * 1000)
+            val shouldFetch = cached == null || (CommonUtils.getCurrentDate() != cached.lastUpdated)
             
             if (shouldFetch) {
                 val response = apiService.getFTPThresholds(getAuth())
                 if (response.statusCode == 200 && response.data != null) {
                     val newThresholds = response.data.apply { 
-                        lastUpdated = System.currentTimeMillis()
+                        lastUpdated = CommonUtils.getCurrentDate()
                         id = 1 
                     }
                     databaseDao.insertFTPThresholds(newThresholds)
