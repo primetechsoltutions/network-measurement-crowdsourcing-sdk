@@ -89,8 +89,17 @@ class NetworkDataWorker(
             Result.success()
 
         } catch (e: Exception) {
+            var statusCode = 0
             val errorMessage = when (e) {
-                is HttpException -> "HTTP error: ${e.code()} ${e.message}"
+                is HttpException -> {
+                    statusCode = e.code()
+                    val errorBody = try {
+                        e.response()?.errorBody()?.string()
+                    } catch (_: Exception) {
+                        null
+                    }
+                    "HTTP error: ${e.code()} ${e.message}${if (errorBody != null) " | Body: $errorBody" else ""}"
+                }
                 is IOException -> "Network error: ${e.message}"
                 else -> "Unexpected error: ${e.message}"
             }
@@ -106,8 +115,15 @@ class NetworkDataWorker(
             }
 
             val eventLogModel = NetworkEventLogger.createNetworkRequestFailedLog(
-                authEntity.hostAppName, integratedAppEventName, errorMessage, failedRequest
-            )
+                authEntity.hostAppName, eventName = integratedAppEventName, errorMessage=errorMessage, stackTrace = failedRequest, statusCode = statusCode
+            ).apply {
+                this.msisdn = msisdn
+                this.integratedAppVersion = integratedAppVersion
+                this.sdkInitiateTimeStamp = sdkInitiateTimeStamp
+                this.integratedAppEventName = integratedAppEventName
+                this.userLatitude = userLatitude
+                this.userLongitude = userLongitude
+            }
             preparedLogEventData(authEntity, eventLogModel)
             
             Result.failure()

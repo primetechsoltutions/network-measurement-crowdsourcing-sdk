@@ -6,9 +6,13 @@ import com.ptsl.network_sdk.api.ApiService
 import com.ptsl.network_sdk.data_model.BandWidth
 import com.ptsl.network_sdk.data_model.BandwidthTestResult
 import com.ptsl.network_sdk.data_model.BaseResponse
-import com.ptsl.network_sdk.utils.getTotalBytes
+import com.ptsl.network_sdk.utils.*
+import kotlinx.coroutines.ensureActive
+import kotlin.coroutines.coroutineContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.RequestBody
+import java.io.ByteArrayOutputStream
+import java.nio.charset.StandardCharsets
 import kotlin.math.roundToInt
 
 
@@ -53,7 +57,7 @@ class DownloadUploadHelper (private val apiService: ApiService) {
                             // Capture the response for the upload phase if not already captured
                             if (uploadRequestBodyModel == null) {
                                 try {
-                                    val bodyString = body.string()
+                                    val bodyString = readBodyStringCancellably(body)
                                     uploadRequestBodyModel = Gson().fromJson(
                                         bodyString,
                                         object : TypeToken<BaseResponse<BandWidth>>() {}.type
@@ -64,6 +68,7 @@ class DownloadUploadHelper (private val apiService: ApiService) {
                                     receivedPacketsInBytes.add(bytes)
                                     totalDownloadBytes += bytes
                                 } catch (e: Exception) {
+                                    if (e is kotlinx.coroutines.CancellationException) throw e
                                     // Fallback if parsing fails
                                 }
                             } else {
@@ -75,6 +80,7 @@ class DownloadUploadHelper (private val apiService: ApiService) {
                         }
                     }
                 } finally {
+                    coroutineContext.ensureActive()
                     stopwatch.stop()
                     stopwatch.reset()
                 }
@@ -117,6 +123,7 @@ class DownloadUploadHelper (private val apiService: ApiService) {
                             totalUploadBytes += bytes
                         }
                     } finally {
+                        coroutineContext.ensureActive()
                         stopwatch.stop()
                         stopwatch.reset()
                     }
@@ -135,12 +142,31 @@ class DownloadUploadHelper (private val apiService: ApiService) {
             uploadSpeedKbps = 0.0
         }
 
+        coroutineContext.ensureActive()
+
         return BandwidthTestResult(
             downloadSpeedKbps = (downloadSpeedKbps * 100).roundToInt() / 100.0,
             uploadSpeedKbps = (uploadSpeedKbps * 100).roundToInt() / 100.0,
             totalDownloadBytes = totalDownloadBytes,
             totalUploadBytes = totalUploadBytes
         )
+    }
+
+    private suspend fun readBodyStringCancellably(body: okhttp3.ResponseBody): String {
+        val inputStream = body.byteStream()
+        val bos = ByteArrayOutputStream()
+        val buffer = ByteArray(2048)
+        var length: Int
+        try {
+            while (inputStream.read(buffer).also { length = it } != -1) {
+                coroutineContext.ensureActive()
+                bos.write(buffer, 0, length)
+            }
+            return bos.toString(StandardCharsets.UTF_8.name())
+        } finally {
+            inputStream.close()
+            bos.close()
+        }
     }
 
 }

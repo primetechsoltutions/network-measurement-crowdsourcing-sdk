@@ -105,7 +105,11 @@ class FTPNetworkDataWorker(
             }
         } catch (e: TimeoutCancellationException) {
             Log.e(TAG, "❌ Global Timeout during assessment")
-            logError(e, "FTP_CAPTURE_TIMEOUT", inputData.getString("integratedAppEventName") ?: "Event")
+            try {
+                withTimeout(10000) { // Limit logging time if timed out
+                    logError(e, "FTP_CAPTURE_TIMEOUT", inputData.getString("integratedAppEventName") ?: "Event")
+                }
+            } catch (_: Exception) {}
             returnResultToHost(
                 "Failed", "Failed", 408,
                 "Network assessment timed out. Please check your internet connection.", null
@@ -119,7 +123,11 @@ class FTPNetworkDataWorker(
             )
         } catch (e: Exception) {
             Log.e(TAG, "❌ Unexpected Execution Error: ${e.message}")
-            logError(e, "FTP_CAPTURE_EXECUTION_ERROR", inputData.getString("integratedAppEventName") ?: "Event")
+            try {
+                withTimeout(10000) { // Limit logging time
+                    logError(e, "FTP_CAPTURE_EXECUTION_ERROR", inputData.getString("integratedAppEventName") ?: "Event")
+                }
+            } catch (_: Exception) {}
             returnResultToHost(
                 "Failed", "Failed", 400,
                 "Network assessment failed due to internal error.", null
@@ -339,8 +347,8 @@ class FTPNetworkDataWorker(
         }
     }
 
-    private fun processAndReturnFinalResult(ftpData: FTPNetworkDataEntity, assessmentId: Long): Result {
-        val thresholds = kotlinx.coroutines.runBlocking { databaseDao.getFTPThresholds() } ?: FTPThresholdEntity()
+    private suspend fun processAndReturnFinalResult(ftpData: FTPNetworkDataEntity, assessmentId: Long): Result {
+        val thresholds = databaseDao.getFTPThresholds() ?: FTPThresholdEntity()
 
         val isRsrpPass = Math.abs(ftpData.rsrp) <= thresholds.rsrpThreshold
         val isDlSpeedPass = ftpData.dlSpeed > thresholds.dlSpeedThreshold
@@ -421,7 +429,12 @@ class FTPNetworkDataWorker(
         val errorMessage = when (e) {
             is HttpException -> {
                 statusCode = e.code()
-                "HTTP error: ${e.message}"
+                val errorBody = try {
+                    e.response()?.errorBody()?.string()
+                } catch (_: Exception) {
+                    null
+                }
+                "HTTP error: ${e.message}${if (errorBody != null) " | Body: $errorBody" else ""}"
             }
             is java.io.IOException -> "Network error: ${e.message}"
             else -> "Unexpected error: ${e.message}"

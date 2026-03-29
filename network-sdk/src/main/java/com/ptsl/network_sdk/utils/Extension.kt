@@ -14,6 +14,8 @@ import cz.mroczis.netmonster.core.model.cell.ICell
 import okhttp3.ResponseBody
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
+import kotlinx.coroutines.ensureActive
+import kotlin.coroutines.coroutineContext
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -386,7 +388,7 @@ suspend fun ICell.prepareFTPData(
     }
 }
 
-fun ResponseBody?.getTotalBytes(): Int {
+suspend fun ResponseBody?.getTotalBytes(): Int {
     var size = 0
     val inputStream: InputStream? = this?.byteStream()
     val byteArrayOutputStream = ByteArrayOutputStream()
@@ -395,12 +397,14 @@ fun ResponseBody?.getTotalBytes(): Int {
     var totalBytesRead = 0
     try {
         while (inputStream?.read(buffer).also { length = it ?: -1 } != -1) {
+            coroutineContext.ensureActive() // Check for cancellation
             byteArrayOutputStream.write(buffer, 0, length)
             totalBytesRead += length
         }
         val byteArray = byteArrayOutputStream.toByteArray()
         size = byteArray.size
-    } catch (_: Exception) {
+    } catch (e: Exception) {
+        if (e is kotlinx.coroutines.CancellationException) throw e
     } finally {
         inputStream?.close()
         byteArrayOutputStream.close()
