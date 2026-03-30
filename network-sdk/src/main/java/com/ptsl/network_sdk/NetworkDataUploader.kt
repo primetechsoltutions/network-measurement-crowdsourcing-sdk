@@ -69,6 +69,18 @@ class NetworkDataUploader {
         }
 
         requestPermission { isGranted ->
+            if (!isGranted) {
+                Log.w(TAG, "Permissions not granted for measurement capture.")
+                callback(false, UploadStatus(
+                    isSdkInit = this::checkPermissionHandler.isInitialized,
+                    isLocationEnabled = checkPermissionHandler.isLocationPermissionGranted(),
+                    isPhoneStateGranted = checkPermissionHandler.isPhoneStatePermissionGranted(),
+                    dataSaved = false,
+                    message = "Required permissions (Location or Phone State) are missing."
+                ))
+                return@requestPermission
+            }
+
             when (uploadType) {
                 UploadType.NetworkDataCapture -> {
                     SdkContainer.coroutineScope.launch {

@@ -29,16 +29,19 @@ class CheckPermissionHandler(private val activity: AppCompatActivity) {
     private var isRequestInProgress = false
 
     fun isPermissionGranted(): Boolean {
+        return isAllPermissionsGranted() && isGpsEnabled()
+    }
+
+    private fun isAllPermissionsGranted(): Boolean {
         val permissions = listOf(
             Manifest.permission.READ_PHONE_STATE,
             Manifest.permission.ACCESS_COARSE_LOCATION,
             Manifest.permission.ACCESS_FINE_LOCATION
         )
 
-        val isAllPermissionsGranted = permissions.all { permission ->
+        return permissions.all { permission ->
             ContextCompat.checkSelfPermission(activity, permission) == PackageManager.PERMISSION_GRANTED
         }
-        return isGpsEnabled() && isAllPermissionsGranted
     }
 
     fun requestPermission(callback: (Boolean) -> Unit) {
@@ -51,6 +54,16 @@ class CheckPermissionHandler(private val activity: AppCompatActivity) {
             pendingCallbacks.add(callback)
             if (isRequestInProgress) return
             isRequestInProgress = true
+        }
+
+        // If permissions are already granted but GPS is off, show the GPS prompt
+        if (isAllPermissionsGranted() && !isGpsEnabled()) {
+            if (shouldShowGpsPrompt()) {
+                showGpsEnablePrompt()
+            } else {
+                notifyCallbacksAndReset()
+            }
+            return
         }
 
         startPermissionFlow()
