@@ -9,7 +9,7 @@ import com.ptsl.network_sdk.data_model.logger.EventLogModel
 
 @Database(
     entities = [NetworkDataEntity::class, AuthEntity::class, EventLogModel::class, FTPThresholdEntity::class],
-    version = 1,
+    version = 10,
     exportSchema = false
 )
 abstract class NetworkDatabase : RoomDatabase() {
