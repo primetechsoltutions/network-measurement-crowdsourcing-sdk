@@ -81,14 +81,8 @@ class NetworkDataUploader {
                     !isGpsEnabled -> "GPS is disabled. Please enable GPS to proceed."
                     else -> "Required permissions are missing."
                 }
-
-                callback(false, UploadStatus(
-                    isSdkInit = this::checkPermissionHandler.isInitialized,
-                    isLocationEnabled = checkPermissionHandler.isLocationPermissionGranted(),
-                    isPhoneStateGranted = checkPermissionHandler.isPhoneStatePermissionGranted(),
-                    dataSaved = false,
-                    message = errorMessage
-                ))
+                val jsonError = """{"status":"Failed","testResult":"Failed","statusCode":400,"message":"$errorMessage"}"""
+                callback(false, createSuccessStatus(isGranted, jsonError))
                 return@requestPermission
             }
 
@@ -144,13 +138,8 @@ class NetworkDataUploader {
                                     if (!isCallbackCalled) {
                                         isCallbackCalled = true
                                         liveData.removeObserver(observer)
-                                        callback(false, UploadStatus(
-                                            isSdkInit = true,
-                                            isLocationEnabled = true,
-                                            isPhoneStateGranted = true,
-                                            dataSaved = false,
-                                            message = "Network assessment timed out. Please check your internet connection."
-                                        ))
+                                        val jsonTimeout = """{"status":"Failed","testResult":"Failed","statusCode":408,"message":"Network assessment timed out. Please check your internet connection."}"""
+                                        callback(false, createSuccessStatus(isGranted, jsonTimeout))
                                     }
                                 }, 60000)
                             }
