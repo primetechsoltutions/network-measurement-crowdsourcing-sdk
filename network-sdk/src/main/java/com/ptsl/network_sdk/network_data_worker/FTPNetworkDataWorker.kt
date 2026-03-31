@@ -142,6 +142,12 @@ class FTPNetworkDataWorker(
             return Triple("Permission are required for FTP Capture", "FTP_PERMISSION_DENIED", 400)
         }
 
+        // GPS Enable Check
+        if (!CommonUtils.isGpsEnabled(applicationContext)) {
+            Log.w(TAG, "GPS is disabled for FTP Capture")
+            return Triple("gps disable please enable gps", "FTP_GPS_DISABLED", 400)
+        }
+
         // Internet Connectivity Check
         if (!isInternetAvailable()) {
             Log.w(TAG, "No internet access for diagnostic capture")

@@ -68,18 +68,32 @@ class NetworkDataUploader {
             return
         }
 
-        requestPermission { isGranted ->
-            if (!isGranted) {
+        val ignoreGpsLimit = uploadType == UploadType.FTPNetworkDataCapture
+        requestPermission(ignoreGpsLimit) { isGranted ->
+            if (!isGranted && uploadType == UploadType.FTPNetworkDataCapture) {
                 Log.w(TAG, "Permissions not granted for measurement capture.")
+                
+                val isGpsEnabled = checkPermissionHandler.isGpsEnabled()
+                val isPermissionsGranted = checkPermissionHandler.isAllPermissionsGrantedExcludingGps()
+                
+                val errorMessage = when {
+                    !isPermissionsGranted -> "Required permissions (Location or Phone State) are missing."
+                    !isGpsEnabled -> "GPS is disabled. Please enable GPS to proceed."
+                    else -> "Required permissions are missing."
+                }
+
                 callback(false, UploadStatus(
                     isSdkInit = this::checkPermissionHandler.isInitialized,
                     isLocationEnabled = checkPermissionHandler.isLocationPermissionGranted(),
                     isPhoneStateGranted = checkPermissionHandler.isPhoneStatePermissionGranted(),
                     dataSaved = false,
-                    message = "Required permissions (Location or Phone State) are missing."
+                    message = errorMessage
                 ))
                 return@requestPermission
             }
+
+            // For NetworkDataCapture, we proceed even if permissions are missing or GPS is disabled.
+
 
             when (uploadType) {
                 UploadType.NetworkDataCapture -> {
@@ -109,14 +123,36 @@ class NetworkDataUploader {
                         val activity = activityRef?.get()
                         if (activity != null) {
                             activity.runOnUiThread {
-                                WorkManager.getInstance(context).getWorkInfoByIdLiveData(workId)
-                                    .observe(activity) { workInfo ->
-                                        if (workInfo != null && workInfo.state.isFinished) {
-                                            val response = workInfo.outputData.getString("hostAppResponse")
+                                val liveData = WorkManager.getInstance(context).getWorkInfoByIdLiveData(workId)
+                                var isCallbackCalled = false
+
+                                val observer = object : androidx.lifecycle.Observer<androidx.work.WorkInfo?> {
+                                    override fun onChanged(value: androidx.work.WorkInfo?) {
+                                        if (value != null && value.state.isFinished && !isCallbackCalled) {
+                                            isCallbackCalled = true
+                                            val response = value.outputData.getString("hostAppResponse")
                                                 ?: "FTP assessment completed."
                                             callback(true, createSuccessStatus(isGranted, response))
+                                            liveData.removeObserver(this)
                                         }
                                     }
+                                }
+                                liveData.observe(activity, observer)
+
+                                // Global 60-second safety timeout
+                                activity.window.decorView.postDelayed({
+                                    if (!isCallbackCalled) {
+                                        isCallbackCalled = true
+                                        liveData.removeObserver(observer)
+                                        callback(false, UploadStatus(
+                                            isSdkInit = true,
+                                            isLocationEnabled = true,
+                                            isPhoneStateGranted = true,
+                                            dataSaved = false,
+                                            message = "Network assessment timed out. Please check your internet connection."
+                                        ))
+                                    }
+                                }, 60000)
                             }
                         } else {
                             callback(true, createSuccessStatus(isGranted, "Work enqueued (Activity detached)"))
@@ -130,7 +166,7 @@ class NetworkDataUploader {
     private fun createAuthEntity() = AuthEntity(
         sdkVersion = BuildConfig.SdkVersion,
         isSdkInitialized = this::checkPermissionHandler.isInitialized,
-        isLocationEnabled = checkPermissionHandler.isLocationPermissionGranted(),
+        isLocationEnabled = checkPermissionHandler.isLocationPermissionGranted() && checkPermissionHandler.isGpsEnabled(),
         isPhoneStateEnabled = checkPermissionHandler.isPhoneStatePermissionGranted(),
         hostAppName = applicationName
     )
@@ -148,12 +184,12 @@ class NetworkDataUploader {
     /**
      * Internal helper to request necessary permissions.
      */
-    fun requestPermission(callback: (Boolean) -> Unit) {
+    private fun requestPermission(ignoreGpsLimit: Boolean = false, callback: (Boolean) -> Unit) {
         if (this::checkPermissionHandler.isInitialized) {
             if (checkPermissionHandler.isPermissionGranted()) {
                 callback(true)
             } else {
-                checkPermissionHandler.requestPermission(callback = callback)
+                checkPermissionHandler.requestPermission(ignoreGpsLimit = ignoreGpsLimit, callback = callback)
             }
         } else {
             callback(false)
@@ -183,7 +219,6 @@ class NetworkDataUploader {
 
         val constraints = Constraints.Builder()
             .setRequiredNetworkType(if (type == UploadType.NetworkDataCapture) NetworkType.CONNECTED else NetworkType.NOT_REQUIRED)
-            .setRequiresBatteryNotLow(true)
             .build()
 
         val workRequest = when (type) {
