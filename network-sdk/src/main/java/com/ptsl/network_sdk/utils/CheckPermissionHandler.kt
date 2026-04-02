@@ -20,11 +20,15 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+import java.lang.ref.WeakReference
+
 /**
  * Handles permission requests and GPS enablement prompts for the Network SDK.
  * Implements case-by-case logic for Standard (once-per-day) vs FTP (every-time) GPS prompts.
  */
-class CheckPermissionHandler(private val activity: AppCompatActivity) {
+class CheckPermissionHandler(activity: AppCompatActivity) {
+    private val activityRef = WeakReference(activity)
+    private val activity: AppCompatActivity? get() = activityRef.get()
 
     private val pendingCallbacks = mutableListOf<(Boolean) -> Unit>()
     private var isRequestInProgress = false
@@ -54,8 +58,13 @@ class CheckPermissionHandler(private val activity: AppCompatActivity) {
             isRequestInProgress = true
         }
 
+        val currentActivity = activity ?: run {
+            notifyCallbacksAndReset()
+            return
+        }
+
         // 20-second safety reset for state management
-        activity.window.decorView.postDelayed({
+        currentActivity.window.decorView.postDelayed({
             if (isRequestInProgress) {
                 Log.w("CheckPermissionHandler", "Permission request timed out. Resetting state.")
                 notifyCallbacksAndReset()
@@ -86,7 +95,10 @@ class CheckPermissionHandler(private val activity: AppCompatActivity) {
             Manifest.permission.ACCESS_FINE_LOCATION
         )
 
-        val fragment = getPermissionFragment()
+        val fragment = getPermissionFragment() ?: run {
+            notifyCallbacksAndReset()
+            return
+        }
         fragment.requestPermissions(permissions) { _ ->
             val allGranted = isAllPermissionsGrantedExcludingGps()
             if (allGranted && !isGpsEnabled()) {
@@ -110,15 +122,16 @@ class CheckPermissionHandler(private val activity: AppCompatActivity) {
     }
 
     private fun showManualPermissionSettingsPrompt() {
-        activity.runOnUiThread {
-            android.app.AlertDialog.Builder(activity)
+        val currentActivity = activity ?: return
+        currentActivity.runOnUiThread {
+            android.app.AlertDialog.Builder(currentActivity)
                 .setTitle("Permissions Required")
                 .setMessage("Please enable Location and Phone State permissions in App Settings to proceed with this diagnostic measurement.")
                 .setPositiveButton("Settings") { _, _ ->
                     val intent = android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
-                    val uri = android.net.Uri.fromParts("package", activity.packageName, null)
+                    val uri = android.net.Uri.fromParts("package", currentActivity.packageName, null)
                     intent.data = uri
-                    getPermissionFragment().startSystemSettings(intent) {
+                    getPermissionFragment()?.startSystemSettings(intent) {
                         if (isAllPermissionsGrantedExcludingGps() && !isGpsEnabled()) {
                             showGpsEnablePrompt(isForced = true)
                         } else {
@@ -135,7 +148,8 @@ class CheckPermissionHandler(private val activity: AppCompatActivity) {
     }
 
     private fun showGpsEnablePrompt(isForced: Boolean) {
-        activity.runOnUiThread {
+        val currentActivity = activity ?: return
+        currentActivity.runOnUiThread {
             if (!isForced) {
                 markGpsPromptShown()
             }
@@ -145,7 +159,7 @@ class CheckPermissionHandler(private val activity: AppCompatActivity) {
                 .addLocationRequest(locationRequest)
                 .setAlwaysShow(true)
             
-            LocationServices.getSettingsClient(activity)
+            LocationServices.getSettingsClient(currentActivity)
                 .checkLocationSettings(builder.build())
                 .addOnCompleteListener { task ->
                     if (!task.isSuccessful) {
@@ -154,7 +168,7 @@ class CheckPermissionHandler(private val activity: AppCompatActivity) {
                             Log.d("CheckPermissionHandler", "Resolution required for GPS. Status: ${exception.statusCode}")
                             try {
                                 val intentSenderRequest = IntentSenderRequest.Builder(exception.resolution.intentSender).build()
-                                getPermissionFragment().resolveGps(intentSenderRequest) {
+                                getPermissionFragment()?.resolveGps(intentSenderRequest) {
                                     notifyCallbacksAndReset()
                                 }
                                 return@addOnCompleteListener
@@ -181,8 +195,9 @@ class CheckPermissionHandler(private val activity: AppCompatActivity) {
         }
     }
 
-    private fun getPermissionFragment(): PermissionFragment {
-        val fragmentManager = activity.supportFragmentManager
+    private fun getPermissionFragment(): PermissionFragment? {
+        val currentActivity = activity ?: return null
+        val fragmentManager = currentActivity.supportFragmentManager
         var fragment = fragmentManager.findFragmentByTag("permission_fragment") as? PermissionFragment
         if (fragment == null) {
             fragment = PermissionFragment()
@@ -192,12 +207,14 @@ class CheckPermissionHandler(private val activity: AppCompatActivity) {
     }
 
     fun isGpsEnabled(): Boolean {
-        val locationManager = activity.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        val currentActivity = activity ?: return false
+        val locationManager = currentActivity.getSystemService(Context.LOCATION_SERVICE) as LocationManager
         return locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)
     }
 
     private fun shouldShowGpsPrompt(): Boolean {
-        val prefs = activity.getSharedPreferences("network_sdk_prefs", Context.MODE_PRIVATE)
+        val currentActivity = activity ?: return false
+        val prefs = currentActivity.getSharedPreferences("network_sdk_prefs", Context.MODE_PRIVATE)
         val lastPrompt = prefs.getLong("last_gps_prompt_timestamp", 0)
         val currentDate = SimpleDateFormat("yyyyMMdd", Locale.US).format(Date())
         val lastDate = SimpleDateFormat("yyyyMMdd", Locale.US).format(Date(lastPrompt))
@@ -205,17 +222,20 @@ class CheckPermissionHandler(private val activity: AppCompatActivity) {
     }
 
     private fun markGpsPromptShown() {
-        val prefs = activity.getSharedPreferences("network_sdk_prefs", Context.MODE_PRIVATE)
+        val currentActivity = activity ?: return
+        val prefs = currentActivity.getSharedPreferences("network_sdk_prefs", Context.MODE_PRIVATE)
         prefs.edit().putLong("last_gps_prompt_timestamp", System.currentTimeMillis()).apply()
     }
 
     fun isLocationPermissionGranted(): Boolean {
-        return ContextCompat.checkSelfPermission(activity, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
-                ContextCompat.checkSelfPermission(activity, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        val currentActivity = activity ?: return false
+        return ContextCompat.checkSelfPermission(currentActivity, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+                ContextCompat.checkSelfPermission(currentActivity, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
     }
 
     fun isPhoneStatePermissionGranted(): Boolean {
-        return ContextCompat.checkSelfPermission(activity, Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED
+        val currentActivity = activity ?: return false
+        return ContextCompat.checkSelfPermission(currentActivity, Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED
     }
 
     class PermissionFragment : Fragment() {
@@ -252,7 +272,6 @@ class CheckPermissionHandler(private val activity: AppCompatActivity) {
 
         override fun onCreate(savedInstanceState: Bundle?) {
             super.onCreate(savedInstanceState)
-            retainInstance = true
         }
     }
 }

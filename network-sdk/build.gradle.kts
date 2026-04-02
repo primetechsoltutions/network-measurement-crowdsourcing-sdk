@@ -64,8 +64,7 @@ android {
     }
     kotlinOptions {
         jvmTarget = "17"
-        freeCompilerArgs += "-Xstring-concat=inline" // Optional: safe string concat for older APIs
-
+        freeCompilerArgs += "-Xstring-concat=inline"
     }
 }
 
@@ -102,6 +101,9 @@ dependencies {
     implementation(libs.converter.gson)
 
     //
+    // Startup
+    implementation(libs.androidx.startup)
+
     coreLibraryDesugaring(libs.desugar.jdk.libs) // Or the latest version
 }
 

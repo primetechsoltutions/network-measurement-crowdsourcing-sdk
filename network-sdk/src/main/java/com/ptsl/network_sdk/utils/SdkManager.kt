@@ -11,7 +11,7 @@ internal object SdkManager {
             val config = Configuration.Builder()
                 .setWorkerFactory(SdkWorkerFactory())
                 .build()
-            WorkManager.initialize(context, config)
+            WorkManager.initialize(context.applicationContext, config)
         } catch (e: IllegalStateException) {
             // Log if already initialized, but don't crash the host app
             Log.w("SdkManager", "WorkManager is already initialized. Skipping initialization.")
