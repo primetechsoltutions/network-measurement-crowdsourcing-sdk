@@ -110,40 +110,10 @@ class CheckPermissionHandler(activity: AppCompatActivity) {
                     notifyCallbacksAndReset()
                 }
             } else if (!allGranted) {
-                if (ignoreGpsLimit) {
-                    showManualPermissionSettingsPrompt()
-                } else {
-                    notifyCallbacksAndReset()
-                }
+                notifyCallbacksAndReset()
             } else {
                 notifyCallbacksAndReset()
             }
-        }
-    }
-
-    private fun showManualPermissionSettingsPrompt() {
-        val currentActivity = activity ?: return
-        currentActivity.runOnUiThread {
-            android.app.AlertDialog.Builder(currentActivity)
-                .setTitle("Permissions Required")
-                .setMessage("Please enable Location and Phone State permissions in App Settings to proceed with this diagnostic measurement.")
-                .setPositiveButton("Settings") { _, _ ->
-                    val intent = android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
-                    val uri = android.net.Uri.fromParts("package", currentActivity.packageName, null)
-                    intent.data = uri
-                    getPermissionFragment()?.startSystemSettings(intent) {
-                        if (isAllPermissionsGrantedExcludingGps() && !isGpsEnabled()) {
-                            showGpsEnablePrompt(isForced = true)
-                        } else {
-                            notifyCallbacksAndReset()
-                        }
-                    }
-                }
-                .setNegativeButton("Cancel") { _, _ ->
-                    notifyCallbacksAndReset()
-                }
-                .setCancelable(false)
-                .show()
         }
     }
 
@@ -241,7 +211,6 @@ class CheckPermissionHandler(activity: AppCompatActivity) {
     class PermissionFragment : Fragment() {
         private var permissionCallback: ((Map<String, Boolean>) -> Unit)? = null
         private var gpsCallback: (() -> Unit)? = null
-        private var settingsCallback: (() -> Unit)? = null
         
         private val permissionLauncher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
             permissionCallback?.invoke(it)
@@ -251,9 +220,6 @@ class CheckPermissionHandler(activity: AppCompatActivity) {
             gpsCallback?.invoke()
         }
 
-        private val settingsLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-            settingsCallback?.invoke()
-        }
 
         fun requestPermissions(permissions: Array<String>, callback: (Map<String, Boolean>) -> Unit) {
             this.permissionCallback = callback
@@ -263,11 +229,6 @@ class CheckPermissionHandler(activity: AppCompatActivity) {
         fun resolveGps(intentSenderRequest: IntentSenderRequest, callback: () -> Unit) {
             this.gpsCallback = callback
             gpsResolutionLauncher.launch(intentSenderRequest)
-        }
-
-        fun startSystemSettings(intent: android.content.Intent, callback: () -> Unit) {
-            this.settingsCallback = callback
-            settingsLauncher.launch(intent)
         }
 
         override fun onCreate(savedInstanceState: Bundle?) {
