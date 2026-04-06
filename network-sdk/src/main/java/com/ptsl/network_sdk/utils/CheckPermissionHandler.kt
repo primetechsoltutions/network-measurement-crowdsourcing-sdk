@@ -96,10 +96,11 @@ class CheckPermissionHandler(activity: AppCompatActivity) {
         )
 
         val fragment = getPermissionFragment() ?: run {
+            Log.e("CheckPermissionHandler", "Cannot start permission flow: Activity/Fragment state invalid.")
             notifyCallbacksAndReset()
             return
         }
-        fragment.requestPermissions(permissions) { _ ->
+        val success = fragment.requestPermissions(permissions) { _ ->
             val allGranted = isAllPermissionsGrantedExcludingGps()
             if (allGranted && !isGpsEnabled()) {
                 if (ignoreGpsLimit) {
@@ -114,6 +115,11 @@ class CheckPermissionHandler(activity: AppCompatActivity) {
             } else {
                 notifyCallbacksAndReset()
             }
+        }
+        
+        if (!success) {
+            Log.e("CheckPermissionHandler", "Failed to launch requestPermissions. Resetting.")
+            notifyCallbacksAndReset()
         }
     }
 
@@ -138,10 +144,15 @@ class CheckPermissionHandler(activity: AppCompatActivity) {
                             Log.d("CheckPermissionHandler", "Resolution required for GPS. Status: ${exception.statusCode}")
                             try {
                                 val intentSenderRequest = IntentSenderRequest.Builder(exception.resolution.intentSender).build()
-                                getPermissionFragment()?.resolveGps(intentSenderRequest) {
+                                val fragment = getPermissionFragment()
+                                if (fragment != null) {
+                                    fragment.resolveGps(intentSenderRequest) {
+                                        notifyCallbacksAndReset()
+                                    }
+                                    return@addOnCompleteListener
+                                } else {
                                     notifyCallbacksAndReset()
                                 }
-                                return@addOnCompleteListener
                             } catch (e: Exception) {
                                 notifyCallbacksAndReset()
                             }
@@ -168,10 +179,26 @@ class CheckPermissionHandler(activity: AppCompatActivity) {
     private fun getPermissionFragment(): PermissionFragment? {
         val currentActivity = activity ?: return null
         val fragmentManager = currentActivity.supportFragmentManager
+        if (fragmentManager.isDestroyed || fragmentManager.isStateSaved || currentActivity.isFinishing || currentActivity.isDestroyed) {
+            Log.w("CheckPermissionHandler", "Activity is finishing, destroyed, or state is saved. Aborting fragment attachment.")
+            return null
+        }
+
         var fragment = fragmentManager.findFragmentByTag("permission_fragment") as? PermissionFragment
         if (fragment == null) {
             fragment = PermissionFragment()
-            fragmentManager.beginTransaction().add(fragment, "permission_fragment").commitNow()
+//            fragmentManager.beginTransaction().add(fragment, "permission_fragment").commitAllowingStateLoss()
+
+            try {
+                // CRITICAL: Must use commitNowAllowingStateLoss() to ensure the fragment 
+                // is attached synchronously before we try to use its launchers.
+                fragmentManager.beginTransaction()
+                    .add(fragment, "permission_fragment")
+                    .commitNowAllowingStateLoss()
+            } catch (e: Exception) {
+                Log.e("CheckPermissionHandler", "Failed to add permission fragment: ${e.message}")
+                return null
+            }
         }
         return fragment
     }
@@ -221,12 +248,27 @@ class CheckPermissionHandler(activity: AppCompatActivity) {
         }
 
 
-        fun requestPermissions(permissions: Array<String>, callback: (Map<String, Boolean>) -> Unit) {
-            this.permissionCallback = callback
-            permissionLauncher.launch(permissions)
+        fun requestPermissions(permissions: Array<String>, callback: (Map<String, Boolean>) -> Unit): Boolean {
+            if (!isAdded) {
+                Log.e("PermissionFragment", "Fragment not attached. Cannot request permissions.")
+                return false
+            }
+            return try {
+                this.permissionCallback = callback
+                permissionLauncher.launch(permissions)
+                true
+            } catch (e: Exception) {
+                Log.e("PermissionFragment", "Error launching permissions: ${e.message}")
+                false
+            }
         }
 
         fun resolveGps(intentSenderRequest: IntentSenderRequest, callback: () -> Unit) {
+            if (!isAdded) {
+                Log.e("PermissionFragment", "Fragment not attached. Cannot resolve GPS.")
+                callback()
+                return
+            }
             this.gpsCallback = callback
             gpsResolutionLauncher.launch(intentSenderRequest)
         }

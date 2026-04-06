@@ -2,6 +2,8 @@ package com.ptsl.networksdk_event
 
 import android.graphics.Color
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.widget.Button
 import androidx.appcompat.app.AppCompatActivity
@@ -40,17 +42,25 @@ class MainActivity : AppCompatActivity() {
 
         findViewById<Button>(R.id.event_1).setOnClickListener {
             val currentDate =
-                    SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
-                            .format(System.currentTimeMillis())
-
+                SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
+                    .format(System.currentTimeMillis())
+//             Handler(Looper.getMainLooper()).postDelayed({
             uploadData("MYBL-1000111", currentDate, "Button-1", UploadType.NetworkDataCapture)
+
+//            val intent = Intent(this, MainActivity2::class.java)
+//            startActivity(intent)
+//             }, 2000)
         }
 
         findViewById<Button>(R.id.event_2).setOnClickListener {
             val currentDate =
-                    SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
-                            .format(System.currentTimeMillis())
+                SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
+                    .format(System.currentTimeMillis())
+             Handler(Looper.getMainLooper()).postDelayed({
             uploadData("MYBL-1023", currentDate, "Button-2", UploadType.FTPNetworkDataCapture)
+
+             }, 2000)
+
         }
     }
 
