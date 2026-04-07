@@ -13,24 +13,32 @@ internal class SdkWorkerFactory : WorkerFactory(){
         workerClassName: String,
         workerParameters: WorkerParameters
     ): ListenableWorker? {
-        return when (workerClassName){
-            NetworkDataWorker::class.java.name->
-                NetworkDataWorker(
-                    appContext,
-                    workerParameters,
-                    SdkContainer.apiService,
-                    SdkContainer.downloadUploadHelper,
-                    SdkContainer.dao
-                )
-            FTPNetworkDataWorker::class.java.name ->
-                FTPNetworkDataWorker(
-                    appContext,
-                    workerParameters,
-                    SdkContainer.apiService,
-                    SdkContainer.downloadUploadHelper,
-                    SdkContainer.dao
-                )
-            else -> null
+        // Guard against WorkManager triggering workers before SdkContainer is initialized
+        // (e.g., cold start from SystemJobService). If not initialized, return null to let
+        // the default WorkerFactory handle it or skip gracefully.
+        return try {
+            when (workerClassName){
+                NetworkDataWorker::class.java.name->
+                    NetworkDataWorker(
+                        appContext,
+                        workerParameters,
+                        SdkContainer.apiService,
+                        SdkContainer.downloadUploadHelper,
+                        SdkContainer.dao
+                    )
+                FTPNetworkDataWorker::class.java.name ->
+                    FTPNetworkDataWorker(
+                        appContext,
+                        workerParameters,
+                        SdkContainer.apiService,
+                        SdkContainer.downloadUploadHelper,
+                        SdkContainer.dao
+                    )
+                else -> null
+            }
+        } catch (e: UninitializedPropertyAccessException) {
+            android.util.Log.e("SdkWorkerFactory", "SdkContainer not initialized. Cannot create worker: $workerClassName")
+            null
         }
     }
 }

@@ -28,7 +28,7 @@ class DownloadUploadHelper (private val apiService: ApiService) {
         activeNetworkMnc: String = "-1"
     ): BandwidthTestResult {
 
-        if (!hasMobileInternet || currentMnc?.toInt() != activeNetworkMnc.toInt()) {
+        if (!hasMobileInternet || currentMnc?.toIntOrNull() != activeNetworkMnc.toIntOrNull()) {
             return BandwidthTestResult(0.0, 0.0, 0, 0)
         }
 

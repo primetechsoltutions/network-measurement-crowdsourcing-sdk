@@ -64,12 +64,16 @@ class CheckPermissionHandler(activity: AppCompatActivity) {
         }
 
         // 20-second safety reset for state management
-        currentActivity.window.decorView.postDelayed({
-            if (isRequestInProgress) {
-                Log.w("CheckPermissionHandler", "Permission request timed out. Resetting state.")
-                notifyCallbacksAndReset()
-            }
-        }, 20000)
+        try {
+            currentActivity.window.decorView.postDelayed({
+                if (isRequestInProgress) {
+                    Log.w("CheckPermissionHandler", "Permission request timed out. Resetting state.")
+                    notifyCallbacksAndReset()
+                }
+            }, 20000)
+        } catch (e: Exception) {
+            Log.w("CheckPermissionHandler", "Could not post timeout (activity may be destroyed): ${e.message}")
+        }
 
         // GPS Prompt Logic
         if (isAllPermissionsGrantedExcludingGps() && !isGpsEnabled()) {
@@ -178,17 +182,20 @@ class CheckPermissionHandler(activity: AppCompatActivity) {
 
     private fun getPermissionFragment(): PermissionFragment? {
         val currentActivity = activity ?: return null
+        if (currentActivity.isFinishing || currentActivity.isDestroyed) {
+            Log.w("CheckPermissionHandler", "Activity is finishing or destroyed. Aborting.")
+            return null
+        }
+        
         val fragmentManager = currentActivity.supportFragmentManager
-        if (fragmentManager.isDestroyed || fragmentManager.isStateSaved || currentActivity.isFinishing || currentActivity.isDestroyed) {
-            Log.w("CheckPermissionHandler", "Activity is finishing, destroyed, or state is saved. Aborting fragment attachment.")
+        if (fragmentManager.isDestroyed || fragmentManager.isStateSaved) {
+            Log.w("CheckPermissionHandler", "FragmentManager is destroyed or state is saved. Aborting.")
             return null
         }
 
         var fragment = fragmentManager.findFragmentByTag("permission_fragment") as? PermissionFragment
         if (fragment == null) {
             fragment = PermissionFragment()
-//            fragmentManager.beginTransaction().add(fragment, "permission_fragment").commitAllowingStateLoss()
-
             try {
                 // CRITICAL: Must use commitNowAllowingStateLoss() to ensure the fragment 
                 // is attached synchronously before we try to use its launchers.
@@ -269,8 +276,13 @@ class CheckPermissionHandler(activity: AppCompatActivity) {
                 callback()
                 return
             }
-            this.gpsCallback = callback
-            gpsResolutionLauncher.launch(intentSenderRequest)
+            try {
+                this.gpsCallback = callback
+                gpsResolutionLauncher.launch(intentSenderRequest)
+            } catch (e: Exception) {
+                Log.e("PermissionFragment", "Error launching GPS resolution: ${e.message}")
+                callback()
+            }
         }
 
         override fun onCreate(savedInstanceState: Bundle?) {

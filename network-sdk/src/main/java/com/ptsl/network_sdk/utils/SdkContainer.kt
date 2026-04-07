@@ -30,8 +30,11 @@ internal  object SdkContainer {
 
         dao = database.networkDao()
 
+        val exceptionHandler = kotlinx.coroutines.CoroutineExceptionHandler { _, exception ->
+            android.util.Log.e("SdkContainer", "Caught unhandled exception in SDK coroutine: ${exception.message}", exception)
+        }
         coroutineScope = CoroutineScope(
-            SupervisorJob() + Dispatchers.Default
+            SupervisorJob() + Dispatchers.Default + exceptionHandler
         )
 
         apiService = NetworkModule.apiService

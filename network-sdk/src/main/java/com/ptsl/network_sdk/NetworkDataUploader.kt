@@ -62,7 +62,7 @@ class NetworkDataUploader {
         uploadType: UploadType,
         callback: (Boolean, UploadStatus) -> Unit
     ) {
-        if (!this::checkPermissionHandler.isInitialized) {
+        if (!this::checkPermissionHandler.isInitialized || !this::context.isInitialized || !this::applicationName.isInitialized) {
             Log.e(TAG, "SDK not initialized. Call init() first.")
             callback(false, UploadStatus(message = "SDK not initialized"))
             return
@@ -92,59 +92,81 @@ class NetworkDataUploader {
             when (uploadType) {
                 UploadType.NetworkDataCapture -> {
                     SdkContainer.coroutineScope.launch {
-                        val auth = createAuthEntity()
-                        SdkContainer.dao.insertAuthData(auth)
-                        
-                        enqueueNetworkDataWork(
-                            auth, msisdn, integratedAppVersion, sdkInitiateTimeStamp,
-                            integratedAppEventName, userLatitude, userLongitude, uploadType
-                        )
+                        try {
+                            val auth = createAuthEntity()
+                            SdkContainer.dao.insertAuthData(auth)
+                            
+                            enqueueNetworkDataWork(
+                                auth, msisdn, integratedAppVersion, sdkInitiateTimeStamp,
+                                integratedAppEventName, userLatitude, userLongitude, uploadType
+                            )
 
-                        callback(true, createSuccessStatus(isGranted))
+                            callback(true, createSuccessStatus(isGranted))
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error during NetworkDataCapture enqueue: ${e.message}")
+                            callback(false, createSuccessStatus(isGranted, "SDK Internal Error"))
+                        }
                     }
                 }
                 UploadType.FTPNetworkDataCapture -> {
                     SdkContainer.coroutineScope.launch {
-                        val auth = createAuthEntity()
-                        SdkContainer.dao.insertAuthData(auth)
-                        
-                        val workId = enqueueNetworkDataWork(
-                            auth, msisdn, integratedAppVersion, sdkInitiateTimeStamp,
-                            integratedAppEventName, userLatitude, userLongitude, uploadType
-                        )
+                        try {
+                            val auth = createAuthEntity()
+                            SdkContainer.dao.insertAuthData(auth)
+                            
+                            val workId = enqueueNetworkDataWork(
+                                auth, msisdn, integratedAppVersion, sdkInitiateTimeStamp,
+                                integratedAppEventName, userLatitude, userLongitude, uploadType
+                            )
 
-                        // Observe work result to return qualitative assessment to host app
-                        val activity = activityRef?.get()
-                        if (activity != null) {
-                            activity.runOnUiThread {
-                                val liveData = WorkManager.getInstance(context).getWorkInfoByIdLiveData(workId)
-                                var isCallbackCalled = false
+                            // Observe work result to return qualitative assessment to host app
+                            val activity = activityRef?.get()
+                            if (activity != null && !activity.isFinishing && !activity.isDestroyed) {
+                                activity.runOnUiThread {
+                                    try {
+                                        val liveData = WorkManager.getInstance(context).getWorkInfoByIdLiveData(workId)
+                                        var isCallbackCalled = false
 
-                                val observer = object : androidx.lifecycle.Observer<androidx.work.WorkInfo?> {
-                                    override fun onChanged(value: androidx.work.WorkInfo?) {
-                                        if (value != null && value.state.isFinished && !isCallbackCalled) {
-                                            isCallbackCalled = true
-                                            val response = value.outputData.getString("hostAppResponse")
-                                                ?: "FTP assessment completed."
-                                            callback(true, createSuccessStatus(isGranted, response))
-                                            liveData.removeObserver(this)
+                                        val observer = object : androidx.lifecycle.Observer<androidx.work.WorkInfo?> {
+                                            override fun onChanged(value: androidx.work.WorkInfo?) {
+                                                if (value != null && value.state.isFinished && !isCallbackCalled) {
+                                                    isCallbackCalled = true
+                                                    val response = value.outputData.getString("hostAppResponse")
+                                                        ?: "FTP assessment completed."
+                                                    callback(true, createSuccessStatus(isGranted, response))
+                                                    liveData.removeObserver(this)
+                                                }
+                                            }
                                         }
+                                        liveData.observe(activity, observer)
+
+                                        // Global 60-second safety timeout
+                                        try {
+                                            activity.window.decorView.postDelayed({
+                                                if (!isCallbackCalled) {
+                                                    isCallbackCalled = true
+                                                    liveData.removeObserver(observer)
+                                                    val jsonTimeout = """{"status":"Failed","testResult":"Failed","statusCode":408,"message":"Network assessment timed out. Please check your internet connection."}"""
+                                                    callback(false, createSuccessStatus(isGranted, jsonTimeout))
+                                                }
+                                            }, 60000)
+                                        } catch (e: Exception) {
+                                            Log.w(TAG, "Could not post timeout handler (activity may be destroyed): ${e.message}")
+                                        }
+                                    } catch (e: Exception) {
+                                        Log.e(TAG, "Error attaching UI observer: ${e.message}")
+                                        val jsonError = """{"status":"Failed","testResult":"Failed","statusCode":400,"message":"${e.message}"}"""
+                                        callback(true, createSuccessStatus(isGranted, jsonError))
                                     }
                                 }
-                                liveData.observe(activity, observer)
-
-                                // Global 60-second safety timeout
-                                activity.window.decorView.postDelayed({
-                                    if (!isCallbackCalled) {
-                                        isCallbackCalled = true
-                                        liveData.removeObserver(observer)
-                                        val jsonTimeout = """{"status":"Failed","testResult":"Failed","statusCode":408,"message":"Network assessment timed out. Please check your internet connection."}"""
-                                        callback(false, createSuccessStatus(isGranted, jsonTimeout))
-                                    }
-                                }, 60000)
+                            } else {
+                                val jsonError = """{"status":"Failed","testResult":"Failed","statusCode":400,"message":"Activity is not available"}"""
+                                callback(true, createSuccessStatus(isGranted, jsonError))
                             }
-                        } else {
-                            callback(true, createSuccessStatus(isGranted, "Work enqueued (Activity detached)"))
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error during FTPNetworkDataCapture enqueue: ${e.message}")
+                            val jsonError = """{"status":"Failed","testResult":"Failed","statusCode":400,"message":"${e.message}"}"""
+                            callback(false, createSuccessStatus(isGranted, jsonError))
                         }
                     }
                 }
