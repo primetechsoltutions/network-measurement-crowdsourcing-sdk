@@ -21,6 +21,7 @@ import java.util.Date
 import java.util.Locale
 
 import java.lang.ref.WeakReference
+import androidx.core.content.edit
 
 /**
  * Handles permission requests and GPS enablement prompts for the Network SDK.
@@ -57,24 +58,6 @@ class CheckPermissionHandler(activity: AppCompatActivity) {
             if (isRequestInProgress) return
             isRequestInProgress = true
         }
-
-        val currentActivity = activity ?: run {
-            notifyCallbacksAndReset()
-            return
-        }
-
-        // 20-second safety reset for state management
-        try {
-            currentActivity.window.decorView.postDelayed({
-                if (isRequestInProgress) {
-                    Log.w("CheckPermissionHandler", "Permission request timed out. Resetting state.")
-                    notifyCallbacksAndReset()
-                }
-            }, 20000)
-        } catch (e: Exception) {
-            Log.w("CheckPermissionHandler", "Could not post timeout (activity may be destroyed): ${e.message}")
-        }
-
         // GPS Prompt Logic
         if (isAllPermissionsGrantedExcludingGps() && !isGpsEnabled()) {
             if (ignoreGpsLimit) {
@@ -240,7 +223,7 @@ class CheckPermissionHandler(activity: AppCompatActivity) {
     private fun markGpsPromptShown() {
         val currentActivity = activity ?: return
         val prefs = currentActivity.getSharedPreferences("network_sdk_prefs", Context.MODE_PRIVATE)
-        prefs.edit().putLong("last_gps_prompt_timestamp", System.currentTimeMillis()).apply()
+        prefs.edit { putLong("last_gps_prompt_timestamp", System.currentTimeMillis()) }
     }
 
     fun isLocationPermissionGranted(): Boolean {

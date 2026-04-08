@@ -177,8 +177,11 @@ class NetworkDataUploader {
                             }
                         } catch (e: Exception) {
                             Log.e(TAG, "Error during FTPNetworkDataCapture enqueue: ${e.message}")
-                            val jsonError = """{"status":"Failed","testResult":"Failed","statusCode":400,"message":"${e.message}"}"""
-                            callback(false, createSuccessStatus(isGranted, jsonError))
+                            val freshActivity = activityRef?.get()
+                            if (freshActivity != null && !freshActivity.isFinishing && !freshActivity.isDestroyed) {
+                                val jsonError = """{"status":"Failed","testResult":"Failed","statusCode":400,"message":"${e.message}"}"""
+                                callback(true, createSuccessStatus(isGranted, jsonError))
+                            }
                         }
                     }
                 }
@@ -261,6 +264,20 @@ class NetworkDataUploader {
         WorkManager.getInstance(context).enqueue(workRequest)
         Log.d(TAG, "Enqueued ${type.name} with ID: ${workRequest.id}")
         return workRequest.id
+    }
+
+    fun onCancel() {
+        if (!this::context.isInitialized) {
+            Log.w(TAG, "SDK not initialized. Nothing to cancel.")
+            return
+        }
+
+        try {
+            WorkManager.getInstance(context).cancelAllWorkByTag(FTPNetworkDataWorker::class.java.name)
+            Log.d(TAG, "Cancelled all FTPNetworkDataWorker tasks.")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error cancelling FTP work: ${e.message}")
+        }
     }
 }
 
