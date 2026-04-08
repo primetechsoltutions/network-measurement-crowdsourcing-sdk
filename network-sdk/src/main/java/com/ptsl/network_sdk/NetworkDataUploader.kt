@@ -133,7 +133,12 @@ class NetworkDataUploader {
                                                     isCallbackCalled = true
                                                     val response = value.outputData.getString("hostAppResponse")
                                                         ?: "FTP assessment completed."
-                                                    callback(true, createSuccessStatus(isGranted, response))
+                                                    
+                                                    // CRITICAL LIFECYCLE GUARD: Final check before poking host app
+                                                    val freshActivity = activityRef?.get()
+                                                    if (freshActivity != null && !freshActivity.isFinishing && !freshActivity.isDestroyed) {
+                                                        callback(true, createSuccessStatus(isGranted, response))
+                                                    }
                                                     liveData.removeObserver(this)
                                                 }
                                             }
@@ -146,8 +151,12 @@ class NetworkDataUploader {
                                                 if (!isCallbackCalled) {
                                                     isCallbackCalled = true
                                                     liveData.removeObserver(observer)
-                                                    val jsonTimeout = """{"status":"Failed","testResult":"Failed","statusCode":408,"message":"Network assessment timed out. Please check your internet connection."}"""
-                                                    callback(false, createSuccessStatus(isGranted, jsonTimeout))
+                                                    
+                                                    val freshActivity = activityRef?.get()
+                                                    if (freshActivity != null && !freshActivity.isFinishing && !freshActivity.isDestroyed) {
+                                                        val jsonTimeout = """{"status":"Failed","testResult":"Failed","statusCode":408,"message":"Network assessment timed out. Please check your internet connection."}"""
+                                                        callback(false, createSuccessStatus(isGranted, jsonTimeout))
+                                                    }
                                                 }
                                             }, 60000)
                                         } catch (e: Exception) {
@@ -155,8 +164,11 @@ class NetworkDataUploader {
                                         }
                                     } catch (e: Exception) {
                                         Log.e(TAG, "Error attaching UI observer: ${e.message}")
-                                        val jsonError = """{"status":"Failed","testResult":"Failed","statusCode":400,"message":"${e.message}"}"""
-                                        callback(true, createSuccessStatus(isGranted, jsonError))
+                                        val freshActivity = activityRef?.get()
+                                        if (freshActivity != null && !freshActivity.isFinishing && !freshActivity.isDestroyed) {
+                                            val jsonError = """{"status":"Failed","testResult":"Failed","statusCode":400,"message":"${e.message}"}"""
+                                            callback(true, createSuccessStatus(isGranted, jsonError))
+                                        }
                                     }
                                 }
                             } else {

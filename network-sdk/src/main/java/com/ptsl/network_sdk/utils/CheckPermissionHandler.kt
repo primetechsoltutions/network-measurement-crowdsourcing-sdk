@@ -171,6 +171,18 @@ class CheckPermissionHandler(activity: AppCompatActivity) {
     }
 
     private fun notifyCallbacksAndReset() {
+        val currentActivity = activity
+        // CRITICAL SECURITY: If the activity is destroyed, firing the callback can trigger 
+        // IllegalStateExceptions in the host app (e.g. Fragment not attached).
+        if (currentActivity == null || currentActivity.isFinishing || currentActivity.isDestroyed) {
+            Log.w("CheckPermissionHandler", "Activity is null or finishing. Clearing callbacks without notifying.")
+            synchronized(pendingCallbacks) {
+                pendingCallbacks.clear()
+                isRequestInProgress = false
+            }
+            return
+        }
+
         val result = isPermissionGranted()
         synchronized(pendingCallbacks) {
             val callbacks = ArrayList(pendingCallbacks)
