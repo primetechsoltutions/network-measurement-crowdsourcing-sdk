@@ -171,7 +171,11 @@ class CheckPermissionHandler(activity: AppCompatActivity) {
             val callbacks = ArrayList(pendingCallbacks)
             pendingCallbacks.clear()
             isRequestInProgress = false
-            callbacks.forEach { it(result) }
+            callbacks.forEach { cb ->
+                try { cb(result) } catch (e: Exception) {
+                    Log.e("CheckPermissionHandler", "Host callback failed (lifecycle): ${e.message}")
+                }
+            }
         }
     }
 

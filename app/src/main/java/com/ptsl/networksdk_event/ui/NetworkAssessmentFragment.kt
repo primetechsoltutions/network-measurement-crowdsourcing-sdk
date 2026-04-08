@@ -46,8 +46,11 @@ class NetworkAssessmentFragment : Fragment() {
     ): View? {
         val view = inflater.inflate(R.layout.fragment_network_assessment, container, false)
         
-        // Use the uploader initialized in MainActivity
-        networkDataUploader = (activity as MainActivity).networkDataUploader
+        // Initialize a new uploader instance for this fragment
+        networkDataUploader = NetworkDataUploader()
+        networkDataUploader.init(this, "MyBL")
+
+
         
         resultTextView = view.findViewById(R.id.resultTextView)
         loadingOverlay = view.findViewById(R.id.loadingOverlay)
@@ -97,8 +100,6 @@ class NetworkAssessmentFragment : Fragment() {
                         resultTextView.text = "Failed for $eventName:\n${status.message}"
                     }
                 }
-            } else {
-                Log.w("DemoApp", "Fragment detached but SDK callback received. Stability confirmed.")
             }
         }
     }
