@@ -70,22 +70,22 @@ class FTPNetworkDataWorker(
 
                 // 2.5 Technology Validation (Restricted to 4G)
                 if (ftpData.technologyType == "NON_4G_IGNORED") {
-                    val msg = "FTP Capture ignored: Not on Banglalink 4G network"
+                    val msg = "FWA Capture ignored: Not on Banglalink 4G network"
                     Log.w(TAG, msg)
                     logValidationFailure(msg, "FTP_CAPTURE_NOT_4G")
                     return@withTimeout returnResultToHost(
                         "Failed", "Failed", 400,
-                        "FTP Capture is only supported on Banglalink 4G (LTE) technology.", null
+                        "FWA Capture is only supported on Banglalink 4G (LTE) technology.", null
                     )
                 }
 
                 if (ftpData.technologyType == "SKIP_MNC_MISMATCH") {
-                    val msg = "FTP Capture ignored: MNC Mismatch (Not Banglalink)"
+                    val msg = "FWA Capture ignored: MNC Mismatch (Not Banglalink)"
                     Log.w(TAG, msg)
                     logValidationFailure(msg, "FTP_CAPTURE_MNC_MISMATCH")
                     return@withTimeout returnResultToHost(
                         "Failed", "Failed", 400,
-                        "Banglalink SIM and mobile data must be enabled for FTP Capture.", null
+                        "Banglalink SIM and mobile data must be enabled for FWA Capture.", null
                     )
                 }
 
@@ -139,13 +139,13 @@ class FTPNetworkDataWorker(
         // Permission Check
         if (!hasRequiredPermissions()) {
             Log.w(TAG, "Missing required permissions for FTP Capture")
-            return Triple("Permission are required for FTP Capture", "FTP_PERMISSION_DENIED", 400)
+            return Triple("Permission are required for FWA Capture", "FTP_PERMISSION_DENIED", 400)
         }
 
         // GPS Enable Check
         if (!CommonUtils.isGpsEnabled(applicationContext)) {
             Log.w(TAG, "GPS is disabled for FTP Capture")
-            return Triple("gps disable please enable gps", "FTP_GPS_DISABLED", 400)
+            return Triple("GPS disable please enable GPS", "FTP_GPS_DISABLED", 400)
         }
 
         // Internet Connectivity Check
@@ -158,7 +158,7 @@ class FTPNetworkDataWorker(
         if (isWifiConnected()) {
             Log.w(TAG, "Wi-Fi is connected, rejecting FTP Capture")
             return Triple(
-                "FTP Capture requires mobile data. Please disable Wi-Fi and ensure Banglalink 4G is active.",
+                "FWA Capture requires mobile data. Please disable Wi-Fi and ensure Banglalink 4G is active.",
                 "FTP_WIFI_CONNECTED",
                 400
             )
@@ -168,7 +168,7 @@ class FTPNetworkDataWorker(
         if (!isMobileNetworkConnected()) {
             Log.w(TAG, "Mobile data not connected for diagnostic capture")
             return Triple(
-                "Mobile data connection is required for FTP Capture. Please enable mobile data.",
+                "Mobile data connection is required for FWA Capture. Please enable mobile data.",
                 "FTP_MOBILE_DATA_REQUIRED",
                 400
             )
@@ -178,7 +178,7 @@ class FTPNetworkDataWorker(
         if (!is4GConnected()) {
             Log.w(TAG, "Network is not 4G/LTE, rejecting FTP Capture")
             return Triple(
-                "4G/LTE connection is required for FTP Capture. Currently not on 4G.",
+                "4G/LTE connection is required for FWA Capture. Currently not on 4G.",
                 "FTP_4G_REQUIRED",
                 400
             )
@@ -188,7 +188,7 @@ class FTPNetworkDataWorker(
         if (!isBanglalinkDataEnabled()) {
             Log.w(TAG, "Banglalink data not active or SIM mismatch")
             return Triple(
-                "Banglalink SIM and mobile data must be enabled for FTP Capture.",
+                "Banglalink SIM and mobile data must be enabled for FWA Capture.",
                 "FTP_BANGLALINK_DATA_UNAVAILABLE",
                 400
             )
