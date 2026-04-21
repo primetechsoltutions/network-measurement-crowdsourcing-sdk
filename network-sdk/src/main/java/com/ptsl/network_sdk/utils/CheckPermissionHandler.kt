@@ -4,8 +4,8 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.location.LocationManager
-import android.os.Bundle
 import android.util.Log
+import androidx.activity.result.ActivityResultCaller
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -20,19 +20,45 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-import java.lang.ref.WeakReference
-import androidx.core.content.edit
 
 /**
  * Handles permission requests and GPS enablement prompts for the Network SDK.
  * Implements case-by-case logic for Standard (once-per-day) vs FTP (every-time) GPS prompts.
  */
-class CheckPermissionHandler(activity: AppCompatActivity) {
-    private val activityRef = WeakReference(activity)
-    private val activity: AppCompatActivity? get() = activityRef.get()
+class CheckPermissionHandler private constructor(
+    private val activity: AppCompatActivity?,
+    private val fragment: Fragment?
+) {
 
-    private val pendingCallbacks = mutableListOf<(Boolean) -> Unit>()
+    constructor(activity: AppCompatActivity) : this(activity, null)
+    constructor(fragment: Fragment) : this(null, fragment)
+
+    private val caller: ActivityResultCaller? = activity ?: fragment
+
+    private val safeContext: Context?
+        get() = activity ?: fragment?.context
+
     private var isRequestInProgress = false
+    private var permissionCallback: ((Map<String, Boolean>) -> Unit)? = null
+    private var gpsCallback: (() -> Unit)? = null
+
+    private val permissionLauncher = caller?.registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) {
+        permissionCallback?.invoke(it)
+    }
+
+    private val gpsResolutionLauncher = caller?.registerForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult()
+    ) {
+        gpsCallback?.invoke()
+    }
+
+    private fun canLaunchUi(): Boolean {
+        activity?.let { return !it.isFinishing && !it.isDestroyed }
+        fragment?.let { return it.isAdded && it.activity != null && !it.requireActivity().isFinishing }
+        return false
+    }
 
     fun isPermissionGranted(): Boolean {
         return isAllPermissionsGrantedExcludingGps() && isGpsEnabled()
@@ -44,7 +70,7 @@ class CheckPermissionHandler(activity: AppCompatActivity) {
 
     /**
      * requests necessary permissions and GPS enablement.
-     * @param ignoreGpsLimit If true (FTP), GPS prompt shows every call. 
+     * @param ignoreGpsLimit If true (FTP), GPS prompt shows every call.
      *                       If false (Standard), GPS prompt shows once-per-day.
      */
     fun requestPermission(ignoreGpsLimit: Boolean = false, callback: (Boolean) -> Unit) {
@@ -52,172 +78,144 @@ class CheckPermissionHandler(activity: AppCompatActivity) {
             callback(true)
             return
         }
+        // Simple in-flight guard: if a permission/GPS resolver flow is already being shown,
+        // ignore any new request (do not queue callbacks).
+        if (isRequestInProgress) return
+        isRequestInProgress = true
 
-        synchronized(pendingCallbacks) {
-            pendingCallbacks.add(callback)
-            if (isRequestInProgress) return
-            isRequestInProgress = true
-        }
+
         // GPS Prompt Logic
         if (isAllPermissionsGrantedExcludingGps() && !isGpsEnabled()) {
             if (ignoreGpsLimit) {
                 // Case-2: FTP capture - forced prompt every time
-                showGpsEnablePrompt(isForced = true)
+                checkAndResolveLocationSettings(isForced = true, callback)
             } else if (shouldShowGpsPrompt()) {
                 // Case-1: Standard capture - once a day
-                showGpsEnablePrompt(isForced = false)
+                checkAndResolveLocationSettings(isForced = false, callback)
             } else {
-                notifyCallbacksAndReset()
+                finishRequest(callback)
             }
             return
         }
 
-        startPermissionFlow(ignoreGpsLimit)
+        startPermissionFlow(ignoreGpsLimit, callback)
     }
 
-    private fun startPermissionFlow(ignoreGpsLimit: Boolean) {
+    private fun startPermissionFlow(ignoreGpsLimit: Boolean, callback: (Boolean) -> Unit) {
         val permissions = arrayOf(
             Manifest.permission.READ_PHONE_STATE,
             Manifest.permission.ACCESS_COARSE_LOCATION,
             Manifest.permission.ACCESS_FINE_LOCATION
         )
 
-        val fragment = getPermissionFragment() ?: run {
-            Log.e("CheckPermissionHandler", "Cannot start permission flow: Activity/Fragment state invalid.")
-            notifyCallbacksAndReset()
-            return
-        }
-        val success = fragment.requestPermissions(permissions) { _ ->
+        requestPermissions(permissions) { _ ->
             val allGranted = isAllPermissionsGrantedExcludingGps()
             if (allGranted && !isGpsEnabled()) {
                 if (ignoreGpsLimit) {
-                    showGpsEnablePrompt(isForced = true)
+                    checkAndResolveLocationSettings(isForced = true, callback)
                 } else if (shouldShowGpsPrompt()) {
-                    showGpsEnablePrompt(isForced = false)
+                    checkAndResolveLocationSettings(isForced = false, callback)
                 } else {
-                    notifyCallbacksAndReset()
+                    finishRequest(callback)
                 }
             } else if (!allGranted) {
-                notifyCallbacksAndReset()
+                finishRequest(callback)
             } else {
-                notifyCallbacksAndReset()
+                finishRequest(callback)
             }
-        }
-        
-        if (!success) {
-            Log.e("CheckPermissionHandler", "Failed to launch requestPermissions. Resetting.")
-            notifyCallbacksAndReset()
         }
     }
 
-    private fun showGpsEnablePrompt(isForced: Boolean) {
-        val currentActivity = activity ?: return
-        currentActivity.runOnUiThread {
-            if (!isForced) {
-                markGpsPromptShown()
-            }
-
-            val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, System.currentTimeMillis() % 10000).build()
-            val builder = LocationSettingsRequest.Builder()
-                .addLocationRequest(locationRequest)
-                .setAlwaysShow(true)
-            
-            LocationServices.getSettingsClient(currentActivity)
-                .checkLocationSettings(builder.build())
-                .addOnCompleteListener { task ->
-                    if (!task.isSuccessful) {
-                        val exception = task.exception
-                        if (exception is ResolvableApiException) {
-                            Log.d("CheckPermissionHandler", "Resolution required for GPS. Status: ${exception.statusCode}")
-                            try {
-                                val intentSenderRequest = IntentSenderRequest.Builder(exception.resolution.intentSender).build()
-                                val fragment = getPermissionFragment()
-                                if (fragment != null) {
-                                    fragment.resolveGps(intentSenderRequest) {
-                                        notifyCallbacksAndReset()
-                                    }
-                                    return@addOnCompleteListener
-                                } else {
-                                    notifyCallbacksAndReset()
-                                }
-                            } catch (e: Exception) {
-                                notifyCallbacksAndReset()
-                            }
-                        } else {
-                            notifyCallbacksAndReset()
-                        }
-                    } else {
-                        notifyCallbacksAndReset()
-                    }
-                }
+    private fun requestPermissions(
+        permissions: Array<String>,
+        callback: (Map<String, Boolean>) -> Unit
+    ) {
+        if (!canLaunchUi()) {
+            // Can't show dialogs; reset state and return current result.
+            resetInFlightFlagOnly()
+            callback(emptyMap())
+            return
         }
+        permissionCallback = callback
+        permissionLauncher?.launch(permissions)
     }
 
-    private fun notifyCallbacksAndReset() {
-        val currentActivity = activity
-        // CRITICAL SECURITY: If the activity is destroyed, firing the callback can trigger 
-        // IllegalStateExceptions in the host app (e.g. Fragment not attached).
-        if (currentActivity == null || currentActivity.isFinishing || currentActivity.isDestroyed) {
-            Log.w("CheckPermissionHandler", "Activity is null or finishing. Clearing callbacks without notifying.")
-            synchronized(pendingCallbacks) {
-                pendingCallbacks.clear()
-                isRequestInProgress = false
-            }
+    private fun resolveGps(intentSenderRequest: IntentSenderRequest, callback: () -> Unit) {
+        if (!canLaunchUi()) {
+            resetInFlightFlagOnly()
+            callback()
+            return
+        }
+        gpsCallback = callback
+        gpsResolutionLauncher?.launch(intentSenderRequest)
+    }
+
+    private fun checkAndResolveLocationSettings(isForced: Boolean, callback: (Boolean) -> Unit) {
+        if (!isForced) {
+            markGpsPromptShown()
+        }
+
+        val locationRequest = LocationRequest.Builder(
+            Priority.PRIORITY_HIGH_ACCURACY,
+            System.currentTimeMillis() % 10000
+        ).build()
+        val builder = LocationSettingsRequest.Builder()
+            .addLocationRequest(locationRequest)
+            .setAlwaysShow(true)
+
+        val ctx = safeContext ?: run {
+            finishRequest(callback)
             return
         }
 
-        val result = isPermissionGranted()
-        synchronized(pendingCallbacks) {
-            val callbacks = ArrayList(pendingCallbacks)
-            pendingCallbacks.clear()
-            isRequestInProgress = false
-            callbacks.forEach { cb ->
-                try { cb(result) } catch (e: Exception) {
-                    Log.e("CheckPermissionHandler", "Host callback failed (lifecycle): ${e.message}")
+        LocationServices.getSettingsClient(ctx)
+            .checkLocationSettings(builder.build())
+            .addOnCompleteListener { task ->
+                if (!task.isSuccessful) {
+                    val exception = task.exception
+                    if (exception is ResolvableApiException) {
+                        Log.d(
+                            "CheckPermissionHandler",
+                            "Resolution required for GPS. Status: ${exception.statusCode}"
+                        )
+                        try {
+                            val intentSenderRequest =
+                                IntentSenderRequest.Builder(exception.resolution.intentSender)
+                                    .build()
+                            resolveGps(intentSenderRequest) {
+                                finishRequest(callback)
+                            }
+                        } catch (_: Exception) {
+                            finishRequest(callback)
+                        }
+                    } else {
+                        finishRequest(callback)
+                    }
+                } else {
+                    finishRequest(callback)
                 }
             }
-        }
     }
 
-    private fun getPermissionFragment(): PermissionFragment? {
-        val currentActivity = activity ?: return null
-        if (currentActivity.isFinishing || currentActivity.isDestroyed) {
-            Log.w("CheckPermissionHandler", "Activity is finishing or destroyed. Aborting.")
-            return null
-        }
-        
-        val fragmentManager = currentActivity.supportFragmentManager
-        if (fragmentManager.isDestroyed || fragmentManager.isStateSaved) {
-            Log.w("CheckPermissionHandler", "FragmentManager is destroyed or state is saved. Aborting.")
-            return null
-        }
+    private fun finishRequest(callback: (Boolean) -> Unit) {
+        val result = isPermissionGranted()
+        isRequestInProgress = false
+        callback(result)
+    }
 
-        var fragment = fragmentManager.findFragmentByTag("permission_fragment") as? PermissionFragment
-        if (fragment == null) {
-            fragment = PermissionFragment()
-            try {
-                // CRITICAL: Must use commitNowAllowingStateLoss() to ensure the fragment 
-                // is attached synchronously before we try to use its launchers.
-                fragmentManager.beginTransaction()
-                    .add(fragment, "permission_fragment")
-                    .commitNowAllowingStateLoss()
-            } catch (e: Exception) {
-                Log.e("CheckPermissionHandler", "Failed to add permission fragment: ${e.message}")
-                return null
-            }
-        }
-        return fragment
+    private fun resetInFlightFlagOnly() {
+        isRequestInProgress = false
     }
 
     fun isGpsEnabled(): Boolean {
-        val currentActivity = activity ?: return false
-        val locationManager = currentActivity.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        val ctx = safeContext ?: return false
+        val locationManager = ctx.getSystemService(Context.LOCATION_SERVICE) as LocationManager
         return locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)
     }
 
     private fun shouldShowGpsPrompt(): Boolean {
-        val currentActivity = activity ?: return false
-        val prefs = currentActivity.getSharedPreferences("network_sdk_prefs", Context.MODE_PRIVATE)
+        val ctx = safeContext ?: return false
+        val prefs = ctx.getSharedPreferences("network_sdk_prefs", Context.MODE_PRIVATE)
         val lastPrompt = prefs.getLong("last_gps_prompt_timestamp", 0)
         val currentDate = SimpleDateFormat("yyyyMMdd", Locale.US).format(Date())
         val lastDate = SimpleDateFormat("yyyyMMdd", Locale.US).format(Date(lastPrompt))
@@ -225,67 +223,28 @@ class CheckPermissionHandler(activity: AppCompatActivity) {
     }
 
     private fun markGpsPromptShown() {
-        val currentActivity = activity ?: return
-        val prefs = currentActivity.getSharedPreferences("network_sdk_prefs", Context.MODE_PRIVATE)
-        prefs.edit { putLong("last_gps_prompt_timestamp", System.currentTimeMillis()) }
+        val ctx = safeContext ?: return
+        val prefs = ctx.getSharedPreferences("network_sdk_prefs", Context.MODE_PRIVATE)
+        prefs.edit().putLong("last_gps_prompt_timestamp", System.currentTimeMillis()).apply()
     }
 
     fun isLocationPermissionGranted(): Boolean {
-        val currentActivity = activity ?: return false
-        return ContextCompat.checkSelfPermission(currentActivity, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
-                ContextCompat.checkSelfPermission(currentActivity, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        val ctx = safeContext ?: return false
+        return ContextCompat.checkSelfPermission(
+            ctx,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED ||
+                ContextCompat.checkSelfPermission(
+                    ctx,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                ) == PackageManager.PERMISSION_GRANTED
     }
 
     fun isPhoneStatePermissionGranted(): Boolean {
-        val currentActivity = activity ?: return false
-        return ContextCompat.checkSelfPermission(currentActivity, Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED
-    }
-
-    class PermissionFragment : Fragment() {
-        private var permissionCallback: ((Map<String, Boolean>) -> Unit)? = null
-        private var gpsCallback: (() -> Unit)? = null
-        
-        private val permissionLauncher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
-            permissionCallback?.invoke(it)
-        }
-
-        private val gpsResolutionLauncher = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) {
-            gpsCallback?.invoke()
-        }
-
-
-        fun requestPermissions(permissions: Array<String>, callback: (Map<String, Boolean>) -> Unit): Boolean {
-            if (!isAdded) {
-                Log.e("PermissionFragment", "Fragment not attached. Cannot request permissions.")
-                return false
-            }
-            return try {
-                this.permissionCallback = callback
-                permissionLauncher.launch(permissions)
-                true
-            } catch (e: Exception) {
-                Log.e("PermissionFragment", "Error launching permissions: ${e.message}")
-                false
-            }
-        }
-
-        fun resolveGps(intentSenderRequest: IntentSenderRequest, callback: () -> Unit) {
-            if (!isAdded) {
-                Log.e("PermissionFragment", "Fragment not attached. Cannot resolve GPS.")
-                callback()
-                return
-            }
-            try {
-                this.gpsCallback = callback
-                gpsResolutionLauncher.launch(intentSenderRequest)
-            } catch (e: Exception) {
-                Log.e("PermissionFragment", "Error launching GPS resolution: ${e.message}")
-                callback()
-            }
-        }
-
-        override fun onCreate(savedInstanceState: Bundle?) {
-            super.onCreate(savedInstanceState)
-        }
+        val ctx = safeContext ?: return false
+        return ContextCompat.checkSelfPermission(
+            ctx,
+            Manifest.permission.READ_PHONE_STATE
+        ) == PackageManager.PERMISSION_GRANTED
     }
 }

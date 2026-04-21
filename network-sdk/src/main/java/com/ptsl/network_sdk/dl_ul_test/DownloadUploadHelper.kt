@@ -16,7 +16,7 @@ import java.nio.charset.StandardCharsets
 import kotlin.math.roundToInt
 
 
-class DownloadUploadHelper (private val apiService: ApiService) {
+class DownloadUploadHelper(private val apiService: ApiService) {
 
 
     suspend fun getBandWidthSpeed(
@@ -44,16 +44,16 @@ class DownloadUploadHelper (private val apiService: ApiService) {
         // ---------------- DOWNLOAD ----------------
         var uploadRequestBodyModel: BaseResponse<BandWidth>? = null
         try {
+            val stopwatch = Stopwatch()
             repeat(retryCountDownload) {
-                val stopwatch = Stopwatch()
-                stopwatch.start()
                 try {
+                    stopwatch.start()
                     val response = apiService.getBandwidthFile(networkType)
                     if (response.isSuccessful) {
                         response.body()?.let { body ->
                             stopwatch.stop()
                             val timeSec = stopwatch.elapsedSeconds()
-                            
+
                             // Capture the response for the upload phase if not already captured
                             if (uploadRequestBodyModel == null) {
                                 try {
@@ -103,10 +103,10 @@ class DownloadUploadHelper (private val apiService: ApiService) {
         try {
             // Reuse the model captured during download instead of calling apiService.getBandwidthFile again
             uploadRequestBodyModel?.let { reqModel ->
+                val stopwatch = Stopwatch()
                 repeat(retryCountUpload) {
-                    val stopwatch = Stopwatch()
-                    stopwatch.start()
                     try {
+                        stopwatch.start()
                         val body = RequestBody.create(
                             "application/json".toMediaTypeOrNull(),
                             Gson().toJson(reqModel)

@@ -1,299 +1,3 @@
-//package com.ptsl.network_sdk
-//
-//
-//import android.content.Context
-//import android.util.Log
-//import androidx.appcompat.app.AppCompatActivity
-//import androidx.work.Constraints
-//import androidx.work.NetworkType
-//import androidx.work.OneTimeWorkRequestBuilder
-//import androidx.work.WorkManager
-//import androidx.work.workDataOf
-//import com.ptsl.network_sdk.data_model.UploadStatus
-//import com.ptsl.network_sdk.data_model.entity.AuthEntity
-//import com.ptsl.network_sdk.network_data_worker.FTPNetworkDataWorker
-//import com.ptsl.network_sdk.network_data_worker.NetworkDataWorker
-//import com.ptsl.network_sdk.utils.CheckPermissionHandler
-//import com.ptsl.network_sdk.utils.NetworkSdk
-//import com.ptsl.network_sdk.utils.SdkContainer
-//import kotlinx.coroutines.launch
-//import java.lang.ref.WeakReference
-//
-///**
-// * Main entry point for the Network Measurement SDK.
-// * Handles initialization, permission requests, and enqueueing measurement tasks.
-// */
-//class NetworkDataUploader {
-//    private var activityRef: WeakReference<AppCompatActivity>? = null
-//    private lateinit var checkPermissionHandler: CheckPermissionHandler
-//    private lateinit var context: Context
-//    private lateinit var applicationName: String
-//
-//    private val TAG = "NetworkDataUploader"
-//
-//    /**
-//     * Initializes the SDK with the host activity and application name.
-//     */
-//    fun init(activity: AppCompatActivity, applicationName: String) {
-//        this.activityRef = WeakReference(activity)
-//        this.checkPermissionHandler = CheckPermissionHandler(activity)
-//        this.context = activity.applicationContext
-//        this.applicationName = applicationName
-//        NetworkSdk.init(activity.applicationContext)
-//        Log.i(TAG, "SDK Initialized for $applicationName")
-//    }
-//
-//    /**
-//     * Starts the data collection and upload process.
-//     * @param msisdn User mobile number
-//     * @param integratedAppVersion Version of the host app
-//     * @param sdkInitiateTimeStamp Format: yyyy-MM-dd'T'HH:mm:ss
-//     * @param integratedAppEventName Unique name for the event
-//     * @param uploadType Type of capture (Standard or FTP)
-//     * @param callback Result callback returning success status and details
-//     */
-//    fun startUploading(
-//        msisdn: String,
-//        integratedAppVersion: String,
-//        sdkInitiateTimeStamp: String,
-//        integratedAppEventName: String,
-//        userLatitude: Double = 0.0,
-//        userLongitude: Double = 0.0,
-//        uploadType: UploadType,
-//        callback: (Boolean, UploadStatus) -> Unit
-//    ) {
-//        if (!this::checkPermissionHandler.isInitialized || !this::context.isInitialized || !this::applicationName.isInitialized) {
-//            Log.e(TAG, "SDK not initialized. Call init() first.")
-//            try { callback(false, UploadStatus(message = "SDK not initialized")) } catch (e: Exception) { Log.e(TAG, "Callback failed: ${e.message}") }
-//            return
-//        }
-//
-//        val ignoreGpsLimit = uploadType == UploadType.FTPNetworkDataCapture
-//        requestPermission(ignoreGpsLimit) { isGranted ->
-//            if (!isGranted && uploadType == UploadType.FTPNetworkDataCapture) {
-//                Log.w(TAG, "Permissions not granted for measurement capture.")
-//
-//                val isGpsEnabled = checkPermissionHandler.isGpsEnabled()
-//                val isPermissionsGranted = checkPermissionHandler.isAllPermissionsGrantedExcludingGps()
-//
-//                val errorMessage = when {
-//                    !isPermissionsGranted -> "Required permissions (Location or Phone State) are missing."
-//                    !isGpsEnabled -> "GPS is disabled. Please enable GPS to proceed."
-//                    else -> "Required permissions are missing."
-//                }
-//                val jsonError = """{"status":"Failed","testResult":"Failed","statusCode":400,"message":"$errorMessage"}"""
-//                try { callback(false, createSuccessStatus(isGranted, jsonError)) } catch (e: Exception) { Log.e(TAG, "Callback failed: ${e.message}") }
-//                return@requestPermission
-//            }
-//
-//            // For NetworkDataCapture, we proceed even if permissions are missing or GPS is disabled.
-//
-//
-//            when (uploadType) {
-//                UploadType.NetworkDataCapture -> {
-//                    SdkContainer.coroutineScope.launch {
-//                        try {
-//                            val auth = createAuthEntity()
-//                            SdkContainer.dao.insertAuthData(auth)
-//
-//                            enqueueNetworkDataWork(
-//                                auth, msisdn, integratedAppVersion, sdkInitiateTimeStamp,
-//                                integratedAppEventName, userLatitude, userLongitude, uploadType
-//                            )
-//
-//                            try { callback(true, createSuccessStatus(isGranted)) } catch (e: Exception) { Log.e(TAG, "Callback failed: ${e.message}") }
-//                        } catch (e: Exception) {
-//                            Log.e(TAG, "Error during NetworkDataCapture enqueue: ${e.message}")
-//                            try { callback(false, createSuccessStatus(isGranted, "SDK Internal Error")) } catch (e: Exception) { Log.e(TAG, "Callback failed: ${e.message}") }
-//                        }
-//                    }
-//                }
-//                UploadType.FTPNetworkDataCapture -> {
-//                    SdkContainer.coroutineScope.launch {
-//                        try {
-//                            val auth = createAuthEntity()
-//                            SdkContainer.dao.insertAuthData(auth)
-//
-//                            val workId = enqueueNetworkDataWork(
-//                                auth, msisdn, integratedAppVersion, sdkInitiateTimeStamp,
-//                                integratedAppEventName, userLatitude, userLongitude, uploadType
-//                            )
-//
-//                            // Observe work result to return qualitative assessment to host app
-//                            val activity = activityRef?.get()
-//                            if (activity != null && !activity.isFinishing && !activity.isDestroyed) {
-//                                activity.runOnUiThread {
-//                                    try {
-//                                        val liveData = WorkManager.getInstance(context).getWorkInfoByIdLiveData(workId)
-//                                        var isCallbackCalled = false
-//
-//                                        val observer = object : androidx.lifecycle.Observer<androidx.work.WorkInfo?> {
-//                                            override fun onChanged(value: androidx.work.WorkInfo?) {
-//                                                if (value != null && value.state.isFinished && !isCallbackCalled) {
-//                                                    isCallbackCalled = true
-//                                                    val response = value.outputData.getString("hostAppResponse")
-//                                                        ?: "FTP assessment completed."
-//
-//                                                    // CRITICAL LIFECYCLE GUARD: Final check before poking host app
-//                                                    val freshActivity = activityRef?.get()
-//                                                    if (freshActivity != null && !freshActivity.isFinishing && !freshActivity.isDestroyed) {
-//                                                        try { callback(true, createSuccessStatus(isGranted, response)) } catch (e: Exception) { Log.e(TAG, "Host callback failed (Fragment lifecycle): ${e.message}") }
-//                                                    }
-//                                                    liveData.removeObserver(this)
-//                                                }
-//                                            }
-//                                        }
-//                                        liveData.observe(activity, observer)
-//
-//                                        // Global 60-second safety timeout
-//                                        try {
-//                                            activity.window.decorView.postDelayed({
-//                                                if (!isCallbackCalled) {
-//                                                    isCallbackCalled = true
-//                                                    liveData.removeObserver(observer)
-//
-//                                                    val freshActivity = activityRef?.get()
-//                                                    if (freshActivity != null && !freshActivity.isFinishing && !freshActivity.isDestroyed) {
-//                                                        val jsonTimeout = """{"status":"Failed","testResult":"Failed","statusCode":408,"message":"Network assessment timed out. Please check your internet connection."}"""
-//                                                        try { callback(false, createSuccessStatus(isGranted, jsonTimeout)) } catch (e: Exception) { Log.e(TAG, "Timeout callback failed (Fragment lifecycle): ${e.message}") }
-//                                                    }
-//                                                }
-//                                            }, 60000)
-//                                        } catch (e: Exception) {
-//                                            Log.w(TAG, "Could not post timeout handler (activity may be destroyed): ${e.message}")
-//                                        }
-//                                    } catch (e: Exception) {
-//                                        Log.e(TAG, "Error attaching UI observer: ${e.message}")
-//                                        val freshActivity = activityRef?.get()
-//                                        if (freshActivity != null && !freshActivity.isFinishing && !freshActivity.isDestroyed) {
-//                                            val jsonError = """{"status":"Failed","testResult":"Failed","statusCode":400,"message":"${e.message}"}"""
-//                                            callback(true, createSuccessStatus(isGranted, jsonError))
-//                                        }
-//                                    }
-//                                }
-//                            } else {
-//                                val jsonError = """{"status":"Failed","testResult":"Failed","statusCode":400,"message":"Activity is not available"}"""
-//                                try { callback(true, createSuccessStatus(isGranted, jsonError)) } catch (e: Exception) { Log.e(TAG, "Callback failed: ${e.message}") }
-//                            }
-//                        } catch (e: Exception) {
-//                            Log.e(TAG, "Error during FTPNetworkDataCapture enqueue: ${e.message}")
-//                            val freshActivity = activityRef?.get()
-//                            if (freshActivity != null && !freshActivity.isFinishing && !freshActivity.isDestroyed) {
-//                                val jsonError = """{"status":"Failed","testResult":"Failed","statusCode":400,"message":"${e.message}"}"""
-//                                try { callback(true, createSuccessStatus(isGranted, jsonError)) } catch (cbEx: Exception) { Log.e(TAG, "Callback failed: ${cbEx.message}") }
-//                            }
-//                        }
-//                    }
-//                }
-//            }
-//        }
-//    }
-//
-//    private fun createAuthEntity() = AuthEntity(
-//        sdkVersion = BuildConfig.SdkVersion,
-//        isSdkInitialized = this::checkPermissionHandler.isInitialized,
-//        isLocationEnabled = checkPermissionHandler.isLocationPermissionGranted() && checkPermissionHandler.isGpsEnabled(),
-//        isPhoneStateEnabled = checkPermissionHandler.isPhoneStatePermissionGranted(),
-//        hostAppName = applicationName
-//    )
-//
-//    private fun createSuccessStatus(isGranted: Boolean, message: String = "SDK Task enqueued"): UploadStatus {
-//        return UploadStatus(
-//            isSdkInit = this::checkPermissionHandler.isInitialized,
-//            isLocationEnabled = checkPermissionHandler.isLocationPermissionGranted(),
-//            isPhoneStateGranted = checkPermissionHandler.isPhoneStatePermissionGranted(),
-//            dataSaved = true,
-//            message = message
-//        )
-//    }
-//
-//    /**
-//     * Internal helper to request necessary permissions.
-//     */
-//    private fun requestPermission(ignoreGpsLimit: Boolean = false, callback: (Boolean) -> Unit) {
-//        if (this::checkPermissionHandler.isInitialized) {
-//            if (checkPermissionHandler.isPermissionGranted()) {
-//                callback(true)
-//            } else {
-//                checkPermissionHandler.requestPermission(ignoreGpsLimit = ignoreGpsLimit, callback = callback)
-//            }
-//        } else {
-//            callback(false)
-//        }
-//    }
-//
-//    private fun enqueueNetworkDataWork(
-//        authEntity: AuthEntity,
-//        msisdn: String,
-//        integratedAppVersion: String,
-//        sdkInitiateTimeStamp: String,
-//        integratedAppEventName: String,
-//        userLatitude: Double,
-//        userLongitude: Double,
-//        type: UploadType,
-//    ): java.util.UUID {
-//
-//        val inputData = workDataOf(
-//            "msisdn" to msisdn,
-//            "integratedAppVersion" to integratedAppVersion,
-//            "sdkInitiateTimeStamp" to sdkInitiateTimeStamp,
-//            "integratedAppEventName" to integratedAppEventName,
-//            "sdkVersion" to authEntity.sdkVersion,
-//            "userLatitude" to userLatitude,
-//            "userLongitude" to userLongitude
-//        )
-//
-//        val constraints = Constraints.Builder()
-//            .setRequiredNetworkType(if (type == UploadType.NetworkDataCapture) NetworkType.CONNECTED else NetworkType.NOT_REQUIRED)
-//            .build()
-//
-//        val workRequest = when (type) {
-//            UploadType.NetworkDataCapture ->
-//                OneTimeWorkRequestBuilder<NetworkDataWorker>()
-//                    .setConstraints(constraints)
-//                    .setInputData(inputData)
-//                    .build()
-//
-//            UploadType.FTPNetworkDataCapture ->
-//                OneTimeWorkRequestBuilder<FTPNetworkDataWorker>()
-//                    .setConstraints(constraints)
-//                    .setInputData(inputData)
-//                    .build()
-//        }
-//
-//        WorkManager.getInstance(context).enqueue(workRequest)
-//        Log.d(TAG, "Enqueued ${type.name} with ID: ${workRequest.id}")
-//        return workRequest.id
-//    }
-//
-//    fun onCancel() {
-//        if (!this::context.isInitialized) {
-//            Log.w(TAG, "SDK not initialized. Nothing to cancel.")
-//            return
-//        }
-//
-//        try {
-//            WorkManager.getInstance(context).cancelAllWorkByTag(FTPNetworkDataWorker::class.java.name)
-//            Log.d(TAG, "Cancelled all FTPNetworkDataWorker tasks.")
-//        } catch (e: Exception) {
-//            Log.e(TAG, "Error cancelling FTP work: ${e.message}")
-//        }
-//    }
-//}
-//
-///**
-// * Defines the available measurement types.
-// */
-//enum class UploadType {
-//    /** Standard periodic network measurement. */
-//    NetworkDataCapture,
-//    /** Comprehensive diagnostic capture with FTP and Cell Info. */
-//    FTPNetworkDataCapture
-//}
-
-
-
-
 package com.ptsl.network_sdk
 
 import android.content.Context
@@ -330,29 +34,50 @@ class NetworkDataUploader {
 
     private val TAG = "NetworkDataUploader"
 
-    /** Initializes the SDK with the host activity and application name. */
     fun init(activity: AppCompatActivity, applicationName: String) {
-        this.activityRef = WeakReference(activity)
-        this.lifecycleOwnerRef = WeakReference(activity)
-        this.checkPermissionHandler = CheckPermissionHandler(activity)
-        this.context = activity.applicationContext
-        this.applicationName = applicationName
-        NetworkSdk.init(activity.applicationContext)
-        Log.i(TAG, "SDK Initialized for $applicationName")
+        val isFromFragment = try {
+            val callerName = Thread.currentThread().stackTrace.firstOrNull {
+                it.className != "java.lang.Thread" && 
+                it.className != "dalvik.system.VMStack" && 
+                it.className != NetworkDataUploader::class.java.name
+            }?.className
+            
+            if (callerName != null) {
+                val rootClass = Class.forName(callerName.substringBefore("$"))
+                Fragment::class.java.isAssignableFrom(rootClass)
+            } else false
+        } catch (e: Exception) {
+            false
+        }
+
+        if (isFromFragment) {
+            Log.e(TAG, "Initialization failed: init(AppCompatActivity, ...) was called from a Fragment. Please use init(Fragment, ...) instead.")
+            return
+        }
+
+        setup(activity, activity, CheckPermissionHandler(activity), applicationName)
     }
 
-    /** Initializes the SDK with the host fragment and application name. */
     fun init(fragment: Fragment, applicationName: String) {
-        val activity = fragment.requireActivity() as? AppCompatActivity
-            ?: throw IllegalStateException("Fragment must be attached to an AppCompatActivity")
-        this.activityRef = WeakReference(activity)
-        this.lifecycleOwnerRef = WeakReference(fragment)
-        this.checkPermissionHandler = CheckPermissionHandler(activity)
-        this.context = activity.applicationContext
-        this.applicationName = applicationName
-        NetworkSdk.init(activity.applicationContext)
-        Log.i(TAG, "SDK Initialized for $applicationName from Fragment")
+        val activity = fragment.requireActivity() as? AppCompatActivity ?: return
+        setup(activity, fragment, CheckPermissionHandler(fragment), applicationName)
     }
+
+    private fun setup(
+        activity: AppCompatActivity,
+        owner: LifecycleOwner,
+        permissionHandler: CheckPermissionHandler,
+        appName: String
+    ) {
+        this.activityRef = WeakReference(activity)
+        this.lifecycleOwnerRef = WeakReference(owner)
+        this.checkPermissionHandler = permissionHandler
+        this.context = activity.applicationContext
+        this.applicationName = appName
+        NetworkSdk.init(this.context)
+        Log.i(TAG, "SDK Initialized for $appName via ${owner::class.java.simpleName}")
+    }
+
 
     /**
      * Starts the data collection and upload process.
@@ -392,6 +117,7 @@ class NetworkDataUploader {
                     when {
                         !isPermissionsGranted ->
                             "Required permissions (Location or Phone State) are missing."
+
                         !isGpsEnabled -> "GPS is disabled. Please enable GPS to proceed."
                         else -> "Required permissions are missing."
                     }
@@ -424,6 +150,7 @@ class NetworkDataUploader {
                         callback(true, createSuccessStatus(isGranted))
                     }
                 }
+
                 UploadType.FTPNetworkDataCapture -> {
                     SdkContainer.coroutineScope.launch {
                         val auth = createAuthEntity()
@@ -450,33 +177,45 @@ class NetworkDataUploader {
                                         .getWorkInfoByIdLiveData(workId)
                                 val isCallbackCalled = AtomicBoolean(false)
 
-                                Log.e("Owner Type", "Owner is ${lifecycleOwnerRef?.get()?.javaClass?.simpleName}")
+                                Log.e(
+                                    "Owner Type",
+                                    "Owner is ${lifecycleOwnerRef?.get()?.javaClass?.simpleName}"
+                                )
 
-                                val observer = object : androidx.lifecycle.Observer<androidx.work.WorkInfo?> {
-                                    override fun onChanged(value: androidx.work.WorkInfo?) {
-                                        val owner = lifecycleOwnerRef?.get() ?: run {
-                                            liveData.removeObserver(this)
-                                            return
-                                        }
+                                val observer =
+                                    object : androidx.lifecycle.Observer<androidx.work.WorkInfo?> {
+                                        override fun onChanged(value: androidx.work.WorkInfo?) {
+                                            val owner = lifecycleOwnerRef?.get() ?: run {
+                                                liveData.removeObserver(this)
+                                                return
+                                            }
 
-                                        // Safety check: close observer and return if host is no longer valid
-                                        if (owner is Fragment && !owner.isAdded) {
-                                            liveData.removeObserver(this)
-                                            return
-                                        }
-                                        if (owner is AppCompatActivity && (owner.isFinishing || owner.isDestroyed)) {
-                                            liveData.removeObserver(this)
-                                            return
-                                        }
+                                            // Safety check: close observer and return if host is no longer valid
+                                            if (owner is Fragment && !owner.isAdded) {
+                                                liveData.removeObserver(this)
+                                                return
+                                            }
+                                            if (owner is AppCompatActivity && (owner.isFinishing || owner.isDestroyed)) {
+                                                liveData.removeObserver(this)
+                                                return
+                                            }
 
-                                        if (value != null && value.state.isFinished && isCallbackCalled.compareAndSet(false, true)) {
-                                            val response = value.outputData.getString("hostAppResponse")
-                                                ?: "FTP assessment completed."
-                                            callback(true, createSuccessStatus(isGranted, response))
-                                            liveData.removeObserver(this)
+                                            if (value != null && value.state.isFinished && isCallbackCalled.compareAndSet(
+                                                    false,
+                                                    true
+                                                )
+                                            ) {
+                                                val response =
+                                                    value.outputData.getString("hostAppResponse")
+                                                        ?: "FTP assessment completed."
+                                                callback(
+                                                    true,
+                                                    createSuccessStatus(isGranted, response)
+                                                )
+                                                liveData.removeObserver(this)
+                                            }
                                         }
                                     }
-                                }
 
                                 val owner = lifecycleOwnerRef?.get() ?: activity
                                 liveData.observe(owner, observer)
@@ -573,6 +312,7 @@ class NetworkDataUploader {
                         .setConstraints(constraints)
                         .setInputData(inputData)
                         .build()
+
                 UploadType.FTPNetworkDataCapture ->
                     OneTimeWorkRequestBuilder<FTPNetworkDataWorker>()
                         .setConstraints(constraints)
@@ -590,6 +330,7 @@ class NetworkDataUploader {
 enum class UploadType {
     /** Standard periodic network measurement. */
     NetworkDataCapture,
+
     /** Comprehensive diagnostic capture with FTP and Cell Info. */
     FTPNetworkDataCapture
 }

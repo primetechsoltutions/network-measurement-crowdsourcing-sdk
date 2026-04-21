@@ -1,9 +1,6 @@
 package com.ptsl.networksdk_event.ui
 
-import android.graphics.Color
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
@@ -11,21 +8,16 @@ import android.view.ViewGroup
 import android.widget.Button
 import android.widget.ImageButton
 import android.widget.TextView
+import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import com.github.mikephil.charting.charts.HorizontalBarChart
 import com.github.mikephil.charting.charts.LineChart
-import com.github.mikephil.charting.components.XAxis
 import com.github.mikephil.charting.data.BarData
 import com.github.mikephil.charting.data.BarDataSet
 import com.github.mikephil.charting.data.BarEntry
-import com.github.mikephil.charting.data.Entry
-import com.github.mikephil.charting.data.LineData
-import com.github.mikephil.charting.data.LineDataSet
-import com.github.mikephil.charting.formatter.IndexAxisValueFormatter
 import com.github.mikephil.charting.utils.ColorTemplate
 import com.ptsl.network_sdk.NetworkDataUploader
 import com.ptsl.network_sdk.UploadType
-import com.ptsl.networksdk_event.MainActivity
 import com.ptsl.networksdk_event.R
 import org.json.JSONObject
 import java.text.SimpleDateFormat
@@ -45,13 +37,13 @@ class NetworkAssessmentFragment : Fragment() {
         savedInstanceState: Bundle?
     ): View? {
         val view = inflater.inflate(R.layout.fragment_network_assessment, container, false)
-        
+
         // Initialize a new uploader instance for this fragment
         networkDataUploader = NetworkDataUploader()
         networkDataUploader.init(this, "MyBL")
 
 
-        
+
         resultTextView = view.findViewById(R.id.resultTextView)
         loadingOverlay = view.findViewById(R.id.loadingOverlay)
         signalChart = view.findViewById(R.id.signalChart)
@@ -109,7 +101,7 @@ class NetworkAssessmentFragment : Fragment() {
         try {
             val jsonObject = JSONObject(jsonResponse)
             val testResults = jsonObject.optJSONArray("testResults") ?: return
-            
+
             val entries = ArrayList<BarEntry>()
             for (i in 0 until testResults.length()) {
                 val item = testResults.getJSONObject(i)

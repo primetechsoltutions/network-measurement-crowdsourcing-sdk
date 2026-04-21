@@ -8,13 +8,27 @@
     android:background="#F8F9FA"
     tools:context=".MainActivity">
 
-    <androidx.fragment.app.FragmentContainerView
-        android:id="@+id/fragment_container"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        android:gravity="center"
+        android:orientation="vertical"
+        android:padding="24dp">
 
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_call_sdk"
+            android:layout_width="match_parent"
+            android:layout_height="64dp"
+            android:text="Call SDK Output"
+            android:textAllCaps="false" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_navigate_basic"
+            android:layout_width="match_parent"
+            android:layout_height="64dp"
+            android:layout_marginTop="16dp"
+            android:text="Navigate to BasicActivity"
+            android:textAllCaps="false" />
+
+    </LinearLayout>
 </androidx.constraintlayout.widget.ConstraintLayout>
