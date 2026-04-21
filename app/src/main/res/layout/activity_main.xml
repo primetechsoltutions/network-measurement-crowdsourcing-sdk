@@ -19,7 +19,7 @@
             android:id="@+id/btn_call_sdk"
             android:layout_width="match_parent"
             android:layout_height="64dp"
-            android:text="Call SDK Output"
+            android:text="Call SDK FWA"
             android:textAllCaps="false" />
 
         <com.google.android.material.button.MaterialButton

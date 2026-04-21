@@ -27,10 +27,15 @@ class MainActivity : AppCompatActivity() {
                 "MYBL-1000111",
                 "1.1.0-demo",
                 currentDate,
-                "eventName",
+                "MainActivity",
                 uploadType = UploadType.FTPNetworkDataCapture
             ) { success, status ->
-                Log.e("UploadStatus", "SDK failed for eventName. Error: ${status.message}")
+                if (success){
+                    Log.d("UploadStatus", "SDK Success for MainActivity. Error: ${status.message}")
+                }else{
+                    Log.e("UploadStatus", "SDK failed for MainActivity. Error: ${status.message}")
+                }
+
             }
         }
 

@@ -3,13 +3,13 @@ package com.ptsl.network_sdk
 import android.content.Context
 import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
+import androidx.fragment.app.Fragment
+import androidx.lifecycle.LifecycleOwner
 import androidx.work.Constraints
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.workDataOf
-import androidx.fragment.app.Fragment
-import androidx.lifecycle.LifecycleOwner
 import com.ptsl.network_sdk.data_model.UploadStatus
 import com.ptsl.network_sdk.data_model.entity.AuthEntity
 import com.ptsl.network_sdk.network_data_worker.FTPNetworkDataWorker
@@ -17,9 +17,14 @@ import com.ptsl.network_sdk.network_data_worker.NetworkDataWorker
 import com.ptsl.network_sdk.utils.CheckPermissionHandler
 import com.ptsl.network_sdk.utils.NetworkSdk
 import com.ptsl.network_sdk.utils.SdkContainer
+import kotlinx.coroutines.Delay
+import kotlinx.coroutines.delay
 import java.lang.ref.WeakReference
-import java.util.concurrent.atomic.AtomicBoolean
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+import java.util.concurrent.Delayed
 
 /**
  * Main entry point for the Network Measurement SDK. Handles initialization, permission requests,
@@ -35,23 +40,31 @@ class NetworkDataUploader {
     private val TAG = "NetworkDataUploader"
 
     fun init(activity: AppCompatActivity, applicationName: String) {
-        val isFromFragment = try {
-            val callerName = Thread.currentThread().stackTrace.firstOrNull {
-                it.className != "java.lang.Thread" && 
-                it.className != "dalvik.system.VMStack" && 
-                it.className != NetworkDataUploader::class.java.name
-            }?.className
-            
-            if (callerName != null) {
-                val rootClass = Class.forName(callerName.substringBefore("$"))
-                Fragment::class.java.isAssignableFrom(rootClass)
-            } else false
-        } catch (e: Exception) {
-            false
-        }
+        val isFromFragment =
+            try {
+                val callerName =
+                    Thread.currentThread()
+                        .stackTrace
+                        .firstOrNull {
+                            it.className != "java.lang.Thread" &&
+                                    it.className != "dalvik.system.VMStack" &&
+                                    it.className != NetworkDataUploader::class.java.name
+                        }
+                        ?.className
+
+                if (callerName != null) {
+                    val rootClass = Class.forName(callerName.substringBefore("$"))
+                    Fragment::class.java.isAssignableFrom(rootClass)
+                } else false
+            } catch (e: Exception) {
+                false
+            }
 
         if (isFromFragment) {
-            Log.e(TAG, "Initialization failed: init(AppCompatActivity, ...) was called from a Fragment. Please use init(Fragment, ...) instead.")
+            Log.e(
+                TAG,
+                "Initialization failed: init(AppCompatActivity, ...) was called from a Fragment. Please use init(Fragment, ...) instead."
+            )
             return
         }
 
@@ -77,7 +90,6 @@ class NetworkDataUploader {
         NetworkSdk.init(this.context)
         Log.i(TAG, "SDK Initialized for $appName via ${owner::class.java.simpleName}")
     }
-
 
     /**
      * Starts the data collection and upload process.
@@ -147,7 +159,10 @@ class NetworkDataUploader {
                             uploadType
                         )
 
-                        callback(true, createSuccessStatus(isGranted))
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                            if (!isLifecycleOwnerValid()) return@withContext
+                            callback(true, createSuccessStatus(isGranted))
+                        }
                     }
                 }
 
@@ -168,71 +183,75 @@ class NetworkDataUploader {
                                 uploadType
                             )
 
-                        // Observe work result to return qualitative assessment to host app
-                        val activity = activityRef?.get()
-                        if (activity != null) {
-                            activity.runOnUiThread {
-                                val liveData =
+                        try {
+                            val result =
+                                withTimeoutOrNull(60_000) {
                                     WorkManager.getInstance(context)
-                                        .getWorkInfoByIdLiveData(workId)
-                                val isCallbackCalled = AtomicBoolean(false)
+                                        .getWorkInfoByIdFlow(workId)
+                                        .filter { it?.state?.isFinished == true }
+                                        .first()
+                                }
 
-                                Log.e(
-                                    "Owner Type",
-                                    "Owner is ${lifecycleOwnerRef?.get()?.javaClass?.simpleName}"
-                                )
+                            // Return result on Main Thread for host app safety
+                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                if (!isLifecycleOwnerValid()) return@withContext
 
-                                val observer =
-                                    object : androidx.lifecycle.Observer<androidx.work.WorkInfo?> {
-                                        override fun onChanged(value: androidx.work.WorkInfo?) {
-                                            val owner = lifecycleOwnerRef?.get() ?: run {
-                                                liveData.removeObserver(this)
-                                                return
-                                            }
-
-                                            // Safety check: close observer and return if host is no longer valid
-                                            if (owner is Fragment && !owner.isAdded) {
-                                                liveData.removeObserver(this)
-                                                return
-                                            }
-                                            if (owner is AppCompatActivity && (owner.isFinishing || owner.isDestroyed)) {
-                                                liveData.removeObserver(this)
-                                                return
-                                            }
-
-                                            if (value != null && value.state.isFinished && isCallbackCalled.compareAndSet(
-                                                    false,
-                                                    true
-                                                )
-                                            ) {
-                                                val response =
-                                                    value.outputData.getString("hostAppResponse")
-                                                        ?: "FTP assessment completed."
-                                                callback(
-                                                    true,
-                                                    createSuccessStatus(isGranted, response)
-                                                )
-                                                liveData.removeObserver(this)
-                                            }
-                                        }
-                                    }
-
-                                val owner = lifecycleOwnerRef?.get() ?: activity
-                                liveData.observe(owner, observer)
+                                if (result != null) {
+                                    val response =
+                                        result.outputData.getString("hostAppResponse")
+                                            ?: "FTP assessment completed."
+                                    callback(true, createSuccessStatus(isGranted, response))
+                                } else {
+                                    // Timeout
+                                    Log.w(
+                                        TAG,
+                                        "FTP assessment timed out after 60s. Cancelling work: $workId"
+                                    )
+                                    WorkManager.getInstance(context).cancelWorkById(workId)
+                                    callback(
+                                        false,
+                                        createSuccessStatus(
+                                            isGranted,
+                                            "FTP assessment timed out after 60s."
+                                        )
+                                    )
+                                }
                             }
-                        } else {
-                            callback(
-                                true,
-                                createSuccessStatus(
-                                    isGranted,
-                                    "Work enqueued (Activity detached)"
+                        } catch (e: Exception) {
+                            if (e is kotlinx.coroutines.CancellationException) throw e
+                            Log.e(TAG, "Error during FTP observation", e)
+                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                if (!isLifecycleOwnerValid()) return@withContext
+                                callback(
+                                    false,
+                                    UploadStatus(message = e.message ?: "Observation failed")
                                 )
-                            )
+                            }
                         }
                     }
                 }
             }
         }
+    }
+
+    private fun isLifecycleOwnerValid(): Boolean {
+        val activity = activityRef?.get()
+        if (activity == null || activity.isFinishing || activity.isDestroyed) {
+            Log.w(TAG, "Host Activity is no longer valid. Skipping callback.")
+            return false
+        }
+
+        val owner = lifecycleOwnerRef?.get()
+        if (owner is Fragment) {
+            if (!owner.isAdded || owner.isDetached || owner.viewLifecycleOwnerLiveData.value == null) {
+                Log.w(
+                    TAG,
+                    "Host Fragment is no longer valid (detached or removed). Skipping callback."
+                )
+                return false
+            }
+        }
+        return true
     }
 
     private fun createAuthEntity() =
