@@ -77,17 +77,17 @@ class NetworkAssessmentFragment : Fragment() {
                 uploadType = uploadType
         ) { success, status ->
             // Print the full response to Logcat for debugging
-            Log.d("SDK_RESONSE", "Status: $success, Message: ${status.message}")
+            Log.d("SDK_RESONSE", "Status: $success, Message: ${status.response}")
 
             // CRITICAL: We use view lifecycle check before updating UI
             if (isAdded) {
                 activity?.runOnUiThread {
                     loadingOverlay.visibility = View.GONE
                     if (success) {
-                        resultTextView.text = "Success for $eventName:\n${status.message}"
-                        displayChart(status.message ?: "")
+                        resultTextView.text = "Success for $eventName:\n${status.response}"
+                        displayChart(status.response ?: "")
                     } else {
-                        resultTextView.text = "Failed for $eventName:\n${status.message}"
+                        resultTextView.text = "Failed for $eventName:\n${status.response}"
                     }
                 }
             }

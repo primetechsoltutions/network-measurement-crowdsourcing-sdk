@@ -55,7 +55,7 @@ class MainActivity : AppCompatActivity() {
                 uploadType = uploadType
         ) { success, status ->
             // Print the full response to Logcat for debugging
-            Log.d("SDK_RESONSE", "Status: $success, Message: ${status.message}")
+            Log.d("SDK_RESONSE", "Status: $success, Message: ${status.response}")
         }
     }
 }

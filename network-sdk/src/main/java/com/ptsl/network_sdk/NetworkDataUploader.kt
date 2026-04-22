@@ -86,7 +86,15 @@ class NetworkDataUploader {
     ) {
         if (!this::checkPermissionHandler.isInitialized) {
             Log.e(TAG, "SDK not initialized. Call init() first.")
-            callback(false, UploadStatus(message = "SDK not initialized"))
+            callback(
+                false, UploadStatus(
+                    isSdkInit = false, response = Gson().toJson(
+                        NetworkDataResponse(
+                            status = "Failed", message = "SDK not initialized"
+                        )
+                    )
+                )
+            )
             return
         }
 
@@ -101,7 +109,6 @@ class NetworkDataUploader {
 
                 val errorMessage = when {
                     !isPermissionsGranted -> "Required permissions (Location or Phone State) are missing."
-
                     !isGpsEnabled -> "GPS is disabled. Please enable GPS to proceed."
                     else -> "Required permissions are missing."
                 }
@@ -204,8 +211,15 @@ class NetworkDataUploader {
                             Log.e(TAG, "Error during FTP observation", e)
                             if (!isLifecycleOwnerValid()) return@launch
                             callback(
-                                false, UploadStatus(message = e.message ?: "Observation failed")
+                                false, createSuccessStatus(
+                                    NetworkDataResponse(
+                                        status = "Failed",
+                                        statusCode = 500,
+                                        message = "Error during FTP assessment: ${e.message}"
+                                    )
+                                )
                             )
+
 
                         }
                     }
@@ -224,10 +238,7 @@ class NetworkDataUploader {
         val owner = lifecycleOwnerRef?.get()
         if (owner is Fragment) {
             if (!owner.isAdded || owner.isDetached || owner.viewLifecycleOwnerLiveData.value == null) {
-                Log.w(
-                    TAG,
-                    "Host Fragment is no longer valid (detached or removed). Skipping callback."
-                )
+                Log.w(TAG, "Host Fragment is no longer valid. Skipping callback.")
                 return false
             }
         }
@@ -244,7 +255,7 @@ class NetworkDataUploader {
 
     private fun createSuccessStatus(
         networkDataResponse: NetworkDataResponse = NetworkDataResponse(
-            status = "Failed", statusCode = 400, message = "SDK Task enqueued"
+            status = "Failed", statusCode = 400, message = ""
         )
     ): UploadStatus {
         return UploadStatus(
@@ -252,7 +263,7 @@ class NetworkDataUploader {
             isLocationEnabled = checkPermissionHandler.isLocationPermissionGranted(),
             isPhoneStateGranted = checkPermissionHandler.isPhoneStatePermissionGranted(),
             dataSaved = true,
-            message = Gson().toJson(networkDataResponse)
+            response = Gson().toJson(networkDataResponse)
         )
     }
 
