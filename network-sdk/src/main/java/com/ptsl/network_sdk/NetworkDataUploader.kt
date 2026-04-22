@@ -167,16 +167,19 @@ class NetworkDataUploader {
                                     .filter { it?.state?.isFinished == true }.first()
                             }
 
-                            // Return result on Main Thread for host app safety
-
                             if (!isLifecycleOwnerValid()) return@launch
 
                             if (result != null) {
                                 val response = result.outputData.getString("hostAppResponse")
-                                    ?: "FTP assessment completed."
 
-                                val networkDataResponse =
-                                    Gson().fromJson(response, NetworkDataResponse::class.java)
+                                val networkDataResponse = response?.let {
+                                    Gson().fromJson(it, NetworkDataResponse::class.java)
+                                } ?: NetworkDataResponse(
+                                    status = "Failed",
+                                    testResult = "Failed",
+                                    statusCode = 400,
+                                    message = "FTP assessment failed."
+                                )
                                 callback(true, createSuccessStatus(networkDataResponse))
 
                             } else {
@@ -191,7 +194,7 @@ class NetworkDataUploader {
                                         NetworkDataResponse(
                                             status = "Failed",
                                             statusCode = 408,
-                                            message = "FTP assessment timed out after 60s."
+                                            message = "FTP assessment timed out."
                                         )
                                     )
                                 )
