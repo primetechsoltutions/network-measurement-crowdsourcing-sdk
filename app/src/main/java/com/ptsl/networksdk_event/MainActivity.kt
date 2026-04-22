@@ -7,7 +7,6 @@ import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import com.ptsl.network_sdk.NetworkDataUploader
 import com.ptsl.network_sdk.UploadType
-import com.ptsl.networksdk_event.ui.HomeFragment
 import java.text.SimpleDateFormat
 import java.util.Locale
 
@@ -21,22 +20,20 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
         networkDataUploader.init(this, "MyBL")
         findViewById<View>(R.id.btn_call_sdk).setOnClickListener {
-            val currentDate = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
-                .format(System.currentTimeMillis())
-            networkDataUploader.startUploading(
-                "MYBL-1000111",
-                "1.1.0-demo",
-                currentDate,
-                "MainActivity",
-                uploadType = UploadType.FTPNetworkDataCapture
-            ) { success, status ->
-                if (success){
-                    Log.d("UploadStatus", "SDK Success for MainActivity. Error: ${status.message}")
-                }else{
-                    Log.e("UploadStatus", "SDK failed for MainActivity. Error: ${status.message}")
-                }
+            startMeasurement(UploadType.FTPNetworkDataCapture, "MainActivity Capture FWA1")
+        }
 
-            }
+        findViewById<View>(R.id.btn_call_sdk2).setOnClickListener {
+            startMeasurement(UploadType.FTPNetworkDataCapture, "MainActivity Capture FWA2")
+        }
+
+        findViewById<View>(R.id.btn_call_sdk3).setOnClickListener {
+            startMeasurement(UploadType.NetworkDataCapture, "MainActivity Standard Capture")
+        }
+        findViewById<View>(R.id.btn_call_sdk4).setOnClickListener {
+            startMeasurement(UploadType.NetworkDataCapture, "MainActivity Standard Capture 1")
+            startMeasurement(UploadType.NetworkDataCapture, "MainActivity Standard Capture 2")
+            startMeasurement(UploadType.NetworkDataCapture, "MainActivity Standard Capture 2")
         }
 
         findViewById<View>(R.id.btn_navigate_basic).setOnClickListener {
@@ -45,5 +42,20 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun startMeasurement(uploadType: UploadType, eventName: String) {
+        val currentDate =
+                SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
+                        .format(System.currentTimeMillis())
 
+        networkDataUploader.startUploading(
+                "MYBL-1000111",
+                "1.1.0-demo",
+                currentDate,
+                eventName,
+                uploadType = uploadType
+        ) { success, status ->
+            // Print the full response to Logcat for debugging
+            Log.d("SDK_RESONSE", "Status: $success, Message: ${status.message}")
+        }
+    }
 }

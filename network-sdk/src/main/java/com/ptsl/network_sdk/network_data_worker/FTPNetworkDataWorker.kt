@@ -17,6 +17,7 @@ import com.google.gson.Gson
 import com.ptsl.network_sdk.api.ApiService
 import com.ptsl.network_sdk.data_model.FTPCellInfoGetDataRequest
 import com.ptsl.network_sdk.data_model.FTPNetworkDataRequest
+import com.ptsl.network_sdk.data_model.NetworkDataResponse
 import com.ptsl.network_sdk.data_model.entity.AuthEntity
 import com.ptsl.network_sdk.data_model.entity.FTPCellInfoGetRequest
 import com.ptsl.network_sdk.data_model.entity.FTPNetworkDataEntity
@@ -59,7 +60,7 @@ class FTPNetworkDataWorker(
                     logValidationFailure(msg, code)
                     return@withTimeout returnResultToHost("Failed", "Failed", status, msg, null)
                 }
-                
+
                 // 1.5 Sync Thresholds if necessary
                 updateThresholdsIfNeeded()
 
@@ -107,16 +108,25 @@ class FTPNetworkDataWorker(
             Log.e(TAG, "❌ Global Timeout during assessment")
             try {
                 withTimeout(10000) { // Limit logging time if timed out
-                    logError(e, "FTP_CAPTURE_TIMEOUT", inputData.getString("integratedAppEventName") ?: "Event")
+                    logError(
+                        e,
+                        "FTP_CAPTURE_TIMEOUT",
+                        inputData.getString("integratedAppEventName") ?: "Event"
+                    )
                 }
-            } catch (_: Exception) {}
+            } catch (_: Exception) {
+            }
             returnResultToHost(
                 "Failed", "Failed", 408,
                 "Network assessment timed out. Please check your internet connection.", null
             )
         } catch (e: java.io.IOException) {
             Log.e(TAG, "❌ Network Error: ${e.message}")
-            logError(e, "FTP_CAPTURE_NETWORK_ERROR", inputData.getString("integratedAppEventName") ?: "Event")
+            logError(
+                e,
+                "FTP_CAPTURE_NETWORK_ERROR",
+                inputData.getString("integratedAppEventName") ?: "Event"
+            )
             returnResultToHost(
                 "Failed", "Failed", 400,
                 "Network assessment failed. Please check your internet connection.", null
@@ -125,9 +135,14 @@ class FTPNetworkDataWorker(
             Log.e(TAG, "❌ Unexpected Execution Error: ${e.message}")
             try {
                 withTimeout(10000) { // Limit logging time
-                    logError(e, "FTP_CAPTURE_EXECUTION_ERROR", inputData.getString("integratedAppEventName") ?: "Event")
+                    logError(
+                        e,
+                        "FTP_CAPTURE_EXECUTION_ERROR",
+                        inputData.getString("integratedAppEventName") ?: "Event"
+                    )
                 }
-            } catch (_: Exception) {}
+            } catch (_: Exception) {
+            }
             returnResultToHost(
                 "Failed", "Failed", 400,
                 "Network assessment failed due to internal error.", null
@@ -151,7 +166,11 @@ class FTPNetworkDataWorker(
         // Internet Connectivity Check
         if (!isInternetAvailable()) {
             Log.w(TAG, "No internet access for diagnostic capture")
-            return Triple("Internet connectivity is mandatory for network assessment.", "FTP_INTERNET_UNAVAILABLE", 400)
+            return Triple(
+                "Internet connectivity is mandatory for network assessment.",
+                "FTP_INTERNET_UNAVAILABLE",
+                400
+            )
         }
 
         // Wi-Fi Check (Strictly forbidden for FTP Capture)
@@ -201,14 +220,15 @@ class FTPNetworkDataWorker(
         return ActivityCompat.checkSelfPermission(
             applicationContext, Manifest.permission.ACCESS_FINE_LOCATION
         ) == PackageManager.PERMISSION_GRANTED ||
-        ActivityCompat.checkSelfPermission(
-            applicationContext, Manifest.permission.ACCESS_COARSE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
+                ActivityCompat.checkSelfPermission(
+                    applicationContext, Manifest.permission.ACCESS_COARSE_LOCATION
+                ) == PackageManager.PERMISSION_GRANTED
     }
 
     private fun isInternetAvailable(): Boolean {
         return try {
-            val cm = applicationContext.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+            val cm =
+                applicationContext.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 val network = cm.activeNetwork ?: return false
                 val caps = cm.getNetworkCapabilities(network) ?: return false
@@ -227,7 +247,11 @@ class FTPNetworkDataWorker(
     private fun isBanglalinkDataEnabled(): Boolean {
         return try {
             val sm = SubscriptionManager.from(applicationContext)
-            if (ActivityCompat.checkSelfPermission(applicationContext, Manifest.permission.READ_PHONE_STATE) != PackageManager.PERMISSION_GRANTED) {
+            if (ActivityCompat.checkSelfPermission(
+                    applicationContext,
+                    Manifest.permission.READ_PHONE_STATE
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
                 return false
             }
 
@@ -297,7 +321,10 @@ class FTPNetworkDataWorker(
         val isMobileConnected = isMobileNetworkConnected()
         val activeMnc = if (isMobileConnected) getActiveNetworkMNC() else "-1"
 
-        Log.d(TAG, "getCapturedNetworkData: activeMnc=$activeMnc, isMobileConnected=$isMobileConnected")
+        Log.d(
+            TAG,
+            "getCapturedNetworkData: activeMnc=$activeMnc, isMobileConnected=$isMobileConnected"
+        )
 
         // 1. Initial MNC Check (Active Subscription)
         val activeMncClean = activeMnc.removePrefix("0")
@@ -307,7 +334,8 @@ class FTPNetworkDataWorker(
         }
 
         val cells = try {
-            if (hasRequiredPermissions()) NetMonsterFactory.get(applicationContext).getCells() else null
+            if (hasRequiredPermissions()) NetMonsterFactory.get(applicationContext)
+                .getCells() else null
         } catch (e: Exception) {
             Log.e(TAG, "Error fetching cells: ${e.message}")
             null
@@ -327,7 +355,10 @@ class FTPNetworkDataWorker(
                 val isBanglalink = cellMnc == "3"
                 val isLte = cell is cz.mroczis.netmonster.core.model.cell.CellLte
 
-                Log.d(TAG, "Inspecting Primary Cell: type=${cell.javaClass.simpleName}, mnc=$cellMnc, isLte=$isLte, isBL=$isBanglalink")
+                Log.d(
+                    TAG,
+                    "Inspecting Primary Cell: type=${cell.javaClass.simpleName}, mnc=$cellMnc, isLte=$isLte, isBL=$isBanglalink"
+                )
 
                 if (isBanglalink) {
                     if (isLte) {
@@ -337,7 +368,10 @@ class FTPNetworkDataWorker(
                             getSimCount(), applicationContext
                         )
                     } else {
-                        Log.d(TAG, "Found Banglalink Primary cell but it is NOT 4G (Technology: ${cell.javaClass.simpleName})")
+                        Log.d(
+                            TAG,
+                            "Found Banglalink Primary cell but it is NOT 4G (Technology: ${cell.javaClass.simpleName})"
+                        )
                         foundNon4gBanglalink = true
                     }
                 }
@@ -353,30 +387,42 @@ class FTPNetworkDataWorker(
         }
     }
 
-    private suspend fun processAndReturnFinalResult(ftpData: FTPNetworkDataEntity, assessmentId: Long): Result {
+    private suspend fun processAndReturnFinalResult(
+        ftpData: FTPNetworkDataEntity,
+        assessmentId: Long
+    ): Result {
         val thresholds = databaseDao.getFTPThresholds() ?: FTPThresholdEntity()
 
         val isRsrpPass = Math.abs(ftpData.rsrp) <= thresholds.rsrpThreshold
         val isDlSpeedPass = ftpData.dlSpeed > thresholds.dlSpeedThreshold
-        val isNbhDlThroughputPass = ftpData.nbhDlThroughputMbps > thresholds.nbhDlThroughputThreshold
+        val isNbhDlThroughputPass =
+            ftpData.nbhDlThroughputMbps > thresholds.nbhDlThroughputThreshold
 
         val isPass = isRsrpPass && isDlSpeedPass && isNbhDlThroughputPass
-        
+
         val status = if (isPass) "Success" else "Failed"
         val testResult = if (isPass) "Pass" else "Failed"
         val statusCode = if (isPass) 200 else 400
-        val message = if (isPass) "Your network assessment was successful." else "Your network assessment failed."
+        val message =
+            if (isPass) "Your network assessment was successful." else "Your network assessment failed."
 
         val dataMap = mapOf(
             "assessmentId" to assessmentId,
-            "networkData" to mapOf("RSRP" to ftpData.rsrp, "SNR" to ftpData.snr, "RSRQ" to ftpData.rsrq),
+            "networkData" to mapOf(
+                "RSRP" to ftpData.rsrp,
+                "SNR" to ftpData.snr,
+                "RSRQ" to ftpData.rsrq
+            ),
             "cellInfo" to mapOf(
                 "cellName" to ftpData.cellName,
                 "eNodeBName" to ftpData.eNodeBName,
                 "nbhDlThroughputMbps" to ftpData.nbhDlThroughputMbps,
                 "nbhTrafficGB" to ftpData.nbhTrafficGb
             ),
-            "speedPair" to mapOf("ulSpeedKbps" to ftpData.ulSpeed, "dlSpeedKbps" to ftpData.dlSpeed),
+            "speedPair" to mapOf(
+                "ulSpeedKbps" to ftpData.ulSpeed,
+                "dlSpeedKbps" to ftpData.dlSpeed
+            ),
             "userInfo" to mapOf(
                 "deviceManufacture" to ftpData.deviceManufacture,
                 "deviceModel" to ftpData.deviceModel,
@@ -394,13 +440,13 @@ class FTPNetworkDataWorker(
         try {
             val cached = databaseDao.getFTPThresholds()
             val shouldFetch = cached == null || (CommonUtils.getCurrentDate() != cached.lastUpdated)
-            
+
             if (shouldFetch) {
                 val response = apiService.getFTPThresholds(getAuth())
                 if (response.statusCode == 200 && response.data != null) {
-                    val newThresholds = response.data.apply { 
+                    val newThresholds = response.data.apply {
                         lastUpdated = CommonUtils.getCurrentDate()
-                        id = 1 
+                        id = 1
                     }
                     databaseDao.insertFTPThresholds(newThresholds)
                     Log.i(TAG, "Thresholds sync successful")
@@ -414,7 +460,7 @@ class FTPNetworkDataWorker(
     private suspend fun logValidationFailure(message: String, errorCode: String) {
         val auth = getAuth()
         val eventName = inputData.getString("integratedAppEventName") ?: "Event"
-        
+
         val eventLogModel = NetworkEventLogger.createNetworkRequestFailedLog(
             auth.hostAppName, eventName, message, "Validation Logic Rejection: $errorCode", 400
         ).apply {
@@ -442,6 +488,7 @@ class FTPNetworkDataWorker(
                 }
                 "HTTP error: ${e.message}${if (errorBody != null) " | Body: $errorBody" else ""}"
             }
+
             is java.io.IOException -> "Network error: ${e.message}"
             else -> "Unexpected error: ${e.message}"
         }
@@ -484,14 +531,16 @@ class FTPNetworkDataWorker(
         testResult: String,
         statusCode: Int,
         message: String,
-        data: Any?
+        data: Map<String, Any>?
     ): Result {
-        val responseMap = mapOf(
-            "status" to status,
-            "testResult" to testResult,
-            "statusCode" to statusCode,
-            "message" to message,
-            "data" to data
+
+
+        val responseMap = NetworkDataResponse(
+            status = status,
+            testResult = testResult,
+            statusCode = statusCode,
+            message = message,
+            data = data
         )
 
         val responseJson = Gson().toJson(responseMap)
@@ -501,7 +550,8 @@ class FTPNetworkDataWorker(
 
     private fun isMobileNetworkConnected(): Boolean {
         return try {
-            val cm = applicationContext.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+            val cm =
+                applicationContext.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
             val network = cm.activeNetwork ?: return false
             val caps = cm.getNetworkCapabilities(network) ?: return false
             caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
@@ -512,7 +562,8 @@ class FTPNetworkDataWorker(
 
     private fun isWifiConnected(): Boolean {
         return try {
-            val cm = applicationContext.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+            val cm =
+                applicationContext.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
             val network = cm.activeNetwork ?: return false
             val caps = cm.getNetworkCapabilities(network) ?: return false
             caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
@@ -523,8 +574,13 @@ class FTPNetworkDataWorker(
 
     private fun is4GConnected(): Boolean {
         return try {
-            val telephonyManager = applicationContext.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
-            val networkType = if (ActivityCompat.checkSelfPermission(applicationContext, Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED) {
+            val telephonyManager =
+                applicationContext.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+            val networkType = if (ActivityCompat.checkSelfPermission(
+                    applicationContext,
+                    Manifest.permission.READ_PHONE_STATE
+                ) == PackageManager.PERMISSION_GRANTED
+            ) {
                 telephonyManager.dataNetworkType
             } else {
                 TelephonyManager.NETWORK_TYPE_UNKNOWN
@@ -545,7 +601,8 @@ class FTPNetworkDataWorker(
                     return "0${si?.mnc ?: -1}"
                 }
             }
-        } catch (_: Exception) {}
+        } catch (_: Exception) {
+        }
         return "0-1"
     }
 

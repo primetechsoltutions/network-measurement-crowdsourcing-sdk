@@ -8,7 +8,6 @@ import android.view.ViewGroup
 import android.widget.Button
 import android.widget.ImageButton
 import android.widget.TextView
-import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import com.github.mikephil.charting.charts.HorizontalBarChart
 import com.github.mikephil.charting.charts.LineChart
@@ -19,9 +18,9 @@ import com.github.mikephil.charting.utils.ColorTemplate
 import com.ptsl.network_sdk.NetworkDataUploader
 import com.ptsl.network_sdk.UploadType
 import com.ptsl.networksdk_event.R
-import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.*
+import org.json.JSONObject
 
 class NetworkAssessmentFragment : Fragment() {
 
@@ -32,17 +31,15 @@ class NetworkAssessmentFragment : Fragment() {
     private lateinit var speedChart: LineChart
 
     override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?
+            inflater: LayoutInflater,
+            container: ViewGroup?,
+            savedInstanceState: Bundle?
     ): View? {
         val view = inflater.inflate(R.layout.fragment_network_assessment, container, false)
 
         // Initialize a new uploader instance for this fragment
         networkDataUploader = NetworkDataUploader()
         networkDataUploader.init(this, "MyBL")
-
-
 
         resultTextView = view.findViewById(R.id.resultTextView)
         loadingOverlay = view.findViewById(R.id.loadingOverlay)
@@ -65,18 +62,19 @@ class NetworkAssessmentFragment : Fragment() {
     }
 
     private fun startMeasurement(uploadType: UploadType, eventName: String) {
-        val currentDate = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
-            .format(System.currentTimeMillis())
+        val currentDate =
+                SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
+                        .format(System.currentTimeMillis())
 
         loadingOverlay.visibility = View.VISIBLE
         resultTextView.text = "Starting $eventName. Please wait...\n"
 
         networkDataUploader.startUploading(
-            "MYBL-1000111",
-            "1.1.0-demo",
-            currentDate,
-            eventName,
-            uploadType = uploadType
+                "MYBL-1000111",
+                "1.1.0-demo",
+                currentDate,
+                eventName,
+                uploadType = uploadType
         ) { success, status ->
             // Print the full response to Logcat for debugging
             Log.d("SDK_RESONSE", "Status: $success, Message: ${status.message}")
