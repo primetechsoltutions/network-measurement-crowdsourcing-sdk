@@ -198,9 +198,7 @@ class NetworkDataUploader {
                             }
 
                         } catch (e: Exception) {
-                            if (e is kotlinx.coroutines.CancellationException) throw e
                             Log.e(TAG, "Error during FTP observation", e)
-
                             if (!isLifecycleOwnerValid()) return@launch
                             callback(
                                 false, UploadStatus(message = e.message ?: "Observation failed")
