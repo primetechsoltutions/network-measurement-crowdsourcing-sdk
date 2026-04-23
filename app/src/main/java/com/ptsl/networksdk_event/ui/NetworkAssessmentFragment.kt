@@ -8,6 +8,7 @@ import android.view.ViewGroup
 import android.widget.Button
 import android.widget.ImageButton
 import android.widget.TextView
+import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import com.github.mikephil.charting.charts.HorizontalBarChart
 import com.github.mikephil.charting.charts.LineChart
@@ -39,7 +40,12 @@ class NetworkAssessmentFragment : Fragment() {
 
         // Initialize a new uploader instance for this fragment
         networkDataUploader = NetworkDataUploader()
-        networkDataUploader.init(this, "MyBL")
+
+        (activity as? AppCompatActivity)?.let {
+            networkDataUploader = NetworkDataUploader()
+            networkDataUploader?.init(this, "MY_BL")
+        }
+//        networkDataUploader.init(this, "MyBL")
 
         resultTextView = view.findViewById(R.id.resultTextView)
         loadingOverlay = view.findViewById(R.id.loadingOverlay)

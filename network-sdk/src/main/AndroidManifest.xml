@@ -17,10 +17,7 @@
             <meta-data
                 android:name="androidx.work.WorkManagerInitializer"
                 android:value="androidx.startup"
-                tools:node="remove" />
-            <meta-data
-                android:name="com.ptsl.network_sdk.utils.SdkInitializer"
-                android:value="androidx.startup" />
+                />
         </provider>
     </application>
 

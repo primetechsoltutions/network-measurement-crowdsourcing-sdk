@@ -43,69 +43,62 @@ class DownloadUploadHelper(private val apiService: ApiService) {
 
         // ---------------- DOWNLOAD ----------------
         var uploadRequestBodyModel: BaseResponse<BandWidth>? = null
-        try {
-            val stopwatch = Stopwatch()
-            repeat(retryCountDownload) {
-                try {
-                    stopwatch.start()
-                    val response = apiService.getBandwidthFile(networkType)
-                    if (response.isSuccessful) {
-                        response.body()?.let { body ->
-                            stopwatch.stop()
-                            val timeSec = stopwatch.elapsedSeconds()
+        val stopwatch = Stopwatch()
+        repeat(retryCountDownload) {
 
-                            // Capture the response for the upload phase if not already captured
-                            if (uploadRequestBodyModel == null) {
-                                try {
-                                    val bodyString = readBodyStringCancellably(body)
-                                    uploadRequestBodyModel = Gson().fromJson(
-                                        bodyString,
-                                        object : TypeToken<BaseResponse<BandWidth>>() {}.type
-                                    )
-                                    // Calculate bytes from the captured string
-                                    val bytes = bodyString.length
-                                    timeTakenInSec.add(timeSec)
-                                    receivedPacketsInBytes.add(bytes)
-                                    totalDownloadBytes += bytes
-                                } catch (e: Exception) {
-                                    if (e is kotlinx.coroutines.CancellationException) throw e
-                                    // Fallback if parsing fails
-                                }
-                            } else {
-                                val bytes = body.getTotalBytes()
-                                timeTakenInSec.add(timeSec)
-                                receivedPacketsInBytes.add(bytes)
-                                totalDownloadBytes += bytes
-                            }
+            try {
+                stopwatch.start()
+                val response = apiService.getBandwidthFile(networkType)
+                if (response.isSuccessful) {
+                    response.body()?.let { body ->
+                        stopwatch.stop()
+                        val timeSec = stopwatch.elapsedSeconds()
+
+                        // Capture the response for the upload phase if not already captured
+                        if (uploadRequestBodyModel == null) {
+                            val bodyString = readBodyStringCancellably(body)
+                            uploadRequestBodyModel = Gson().fromJson(
+                                bodyString,
+                                object : TypeToken<BaseResponse<BandWidth>>() {}.type
+                            )
+                            // Calculate bytes from the captured string
+                            val bytes = bodyString.length
+                            timeTakenInSec.add(timeSec)
+                            receivedPacketsInBytes.add(bytes)
+                            totalDownloadBytes += bytes
+                        } else {
+                            val bytes = body.getTotalBytes()
+                            timeTakenInSec.add(timeSec)
+                            receivedPacketsInBytes.add(bytes)
+                            totalDownloadBytes += bytes
                         }
                     }
-                } finally {
-                    coroutineContext.ensureActive()
-                    stopwatch.stop()
-                    stopwatch.reset()
                 }
+
+                val totalBitsKb = receivedPacketsInBytes.sumOf { it.toDouble() * 8 / 1000 }
+                val totalTime = timeTakenInSec.sum()
+                if (totalTime > 0) {
+                    downloadSpeedKbps = totalBitsKb / totalTime
+                }
+
+                receivedPacketsInBytes.clear()
+                timeTakenInSec.clear()
+
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+            } finally {
+                coroutineContext.ensureActive()
+                stopwatch.stop()
+                stopwatch.reset()
             }
-
-            val totalBitsKb = receivedPacketsInBytes.sumOf { it.toDouble() * 8 / 1000 }
-            val totalTime = timeTakenInSec.sum()
-            if (totalTime > 0) {
-                downloadSpeedKbps = totalBitsKb / totalTime
-            }
-
-            receivedPacketsInBytes.clear()
-            timeTakenInSec.clear()
-
-        } catch (_: Exception) {
-            downloadSpeedKbps = 0.0
         }
 
+        repeat(retryCountUpload) {
         // ---------------- UPLOAD ----------------
         try {
             // Reuse the model captured during download instead of calling apiService.getBandwidthFile again
             uploadRequestBodyModel?.let { reqModel ->
-                val stopwatch = Stopwatch()
-                repeat(retryCountUpload) {
-                    try {
+
                         stopwatch.start()
                         val body = RequestBody.create(
                             "application/json".toMediaTypeOrNull(),
@@ -122,11 +115,7 @@ class DownloadUploadHelper(private val apiService: ApiService) {
                             receivedPacketsInBytes.add(bytes)
                             totalUploadBytes += bytes
                         }
-                    } finally {
-                        coroutineContext.ensureActive()
-                        stopwatch.stop()
-                        stopwatch.reset()
-                    }
+
                 }
 
                 val totalBitsKb = receivedPacketsInBytes.sumOf { it.toDouble() * 8 / 1000 }
@@ -137,10 +126,14 @@ class DownloadUploadHelper(private val apiService: ApiService) {
 
                 receivedPacketsInBytes.clear()
                 timeTakenInSec.clear()
-            }
-        } catch (_: Exception) {
-            uploadSpeedKbps = 0.0
-        }
+
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+        }finally {
+            coroutineContext.ensureActive()
+            stopwatch.stop()
+            stopwatch.reset()
+        }}
 
         coroutineContext.ensureActive()
 

@@ -17,7 +17,6 @@ import com.ptsl.network_sdk.data_model.entity.AuthEntity
 import com.ptsl.network_sdk.network_data_worker.FTPNetworkDataWorker
 import com.ptsl.network_sdk.network_data_worker.NetworkDataWorker
 import com.ptsl.network_sdk.utils.CheckPermissionHandler
-import com.ptsl.network_sdk.utils.NetworkSdk
 import com.ptsl.network_sdk.utils.SdkContainer
 import kotlinx.coroutines.Delay
 import kotlinx.coroutines.delay
@@ -46,7 +45,7 @@ class NetworkDataUploader {
     }
 
     fun init(fragment: Fragment, applicationName: String) {
-        val activity = fragment.requireActivity() as? AppCompatActivity ?: return
+        val activity = fragment.activity as? AppCompatActivity ?: return
         setup(activity, fragment, CheckPermissionHandler(fragment), applicationName)
     }
 
@@ -61,7 +60,7 @@ class NetworkDataUploader {
         this.checkPermissionHandler = permissionHandler
         this.context = activity.applicationContext
         this.applicationName = appName
-        NetworkSdk.init(this.context)
+        SdkContainer.init(this.context)
         Log.i(TAG, "SDK Initialized for $appName via ${owner::class.java.simpleName}")
     }
 
@@ -90,7 +89,7 @@ class NetworkDataUploader {
                 false, UploadStatus(
                     isSdkInit = false, response = Gson().toJson(
                         NetworkDataResponse(
-                            status = "Failed", message = "SDK not initialized"
+                            status = "Failed", statusCode = 400, message = "SDK not initialized"
                         )
                     )
                 )
@@ -98,134 +97,147 @@ class NetworkDataUploader {
             return
         }
 
-        val ignoreGpsLimit = uploadType == UploadType.FTPNetworkDataCapture
-        requestPermission(ignoreGpsLimit) { isGranted ->
-            if (!isGranted && uploadType == UploadType.FTPNetworkDataCapture) {
-                Log.w(TAG, "Permissions not granted for measurement capture.")
+      try {
+          val ignoreGpsLimit = uploadType == UploadType.FTPNetworkDataCapture
+          requestPermission(ignoreGpsLimit) { isGranted ->
+              if (!isGranted && uploadType == UploadType.FTPNetworkDataCapture) {
+                  Log.w(TAG, "Permissions not granted for measurement capture.")
 
-                val isGpsEnabled = checkPermissionHandler.isGpsEnabled()
-                val isPermissionsGranted =
-                    checkPermissionHandler.isAllPermissionsGrantedExcludingGps()
+                  val isGpsEnabled = checkPermissionHandler.isGpsEnabled()
+                  val isPermissionsGranted =
+                      checkPermissionHandler.isAllPermissionsGrantedExcludingGps()
 
-                val errorMessage = when {
-                    !isPermissionsGranted -> "Required permissions (Location or Phone State) are missing."
-                    !isGpsEnabled -> "GPS is disabled. Please enable GPS to proceed."
-                    else -> "Required permissions are missing."
-                }
+                  val errorMessage = when {
+                      !isPermissionsGranted -> "Required permissions (Location or Phone State) are missing."
+                      !isGpsEnabled -> "GPS is disabled. Please enable GPS to proceed."
+                      else -> "Required permissions are missing."
+                  }
 
-                val error = NetworkDataResponse(
-                    status = "Failed",
-                    testResult = "Failed",
-                    statusCode = 400,
-                    message = errorMessage
-                )
-                callback(false, createSuccessStatus(error))
-                return@requestPermission
-            }
-
-
-            when (uploadType) {
-                UploadType.NetworkDataCapture -> {
-                    SdkContainer.coroutineScope.launch {
-                        val auth = createAuthEntity()
-                        SdkContainer.dao.insertAuthData(auth)
-
-                        enqueueNetworkDataWork(
-                            auth,
-                            msisdn,
-                            integratedAppVersion,
-                            sdkInitiateTimeStamp,
-                            integratedAppEventName,
-                            userLatitude,
-                            userLongitude,
-                            uploadType
-                        )
-
-                        if (!isLifecycleOwnerValid()) return@launch
-                        callback(
-                            true, createSuccessStatus(
-                                NetworkDataResponse(
-                                    message = "SDK Task enqueued"
-                                )
-                            )
-                        )
-                    }
-                }
-
-                UploadType.FTPNetworkDataCapture -> {
-                    SdkContainer.coroutineScope.launch {
-                        val auth = createAuthEntity()
-                        SdkContainer.dao.insertAuthData(auth)
-
-                        val workId = enqueueNetworkDataWork(
-                            auth,
-                            msisdn,
-                            integratedAppVersion,
-                            sdkInitiateTimeStamp,
-                            integratedAppEventName,
-                            userLatitude,
-                            userLongitude,
-                            uploadType
-                        )
-
-                        try {
-                            val result = withTimeoutOrNull(60_000) {
-                                WorkManager.getInstance(context).getWorkInfoByIdFlow(workId)
-                                    .filter { it?.state?.isFinished == true }.first()
-                            }
-
-                            if (!isLifecycleOwnerValid()) return@launch
-
-                            if (result != null) {
-                                val response = result.outputData.getString("hostAppResponse")
-
-                                val networkDataResponse = response?.let {
-                                    Gson().fromJson(it, NetworkDataResponse::class.java)
-                                } ?: NetworkDataResponse(
-                                    status = "Failed",
-                                    testResult = "Failed",
-                                    statusCode = 400,
-                                    message = "FTP assessment failed."
-                                )
-                                callback(true, createSuccessStatus(networkDataResponse))
-
-                            } else {
-                                // Timeout
-                                Log.w(
-                                    TAG,
-                                    "FTP assessment timed out after 60s. Cancelling work: $workId"
-                                )
-                                WorkManager.getInstance(context).cancelWorkById(workId)
-                                callback(
-                                    false, createSuccessStatus(
-                                        NetworkDataResponse(
-                                            status = "Failed",
-                                            statusCode = 408,
-                                            message = "FTP assessment timed out."
-                                        )
-                                    )
-                                )
-                            }
-
-                        } catch (e: Exception) {
-                            Log.e(TAG, "Error during FTP observation", e)
-                            if (!isLifecycleOwnerValid()) return@launch
-                            callback(
-                                false, createSuccessStatus(
-                                    NetworkDataResponse(
-                                        status = "Failed",
-                                        statusCode = 500,
-                                        message = "Error during FTP assessment: ${e.message}"
-                                    )
-                                )
-                            )
+                  val error = NetworkDataResponse(
+                      status = "Failed",
+                      testResult = "Failed",
+                      statusCode = 400,
+                      message = errorMessage
+                  )
+                  callback(false, createSuccessStatus(error))
+                  return@requestPermission
+              }
 
 
-                        }
-                    }
-                }
-            }
-        }
+              when (uploadType) {
+                  UploadType.NetworkDataCapture -> {
+                      SdkContainer.coroutineScope.launch {
+                          val auth = createAuthEntity()
+                          SdkContainer.dao.insertAuthData(auth)
+
+                          enqueueNetworkDataWork(
+                              auth,
+                              msisdn,
+                              integratedAppVersion,
+                              sdkInitiateTimeStamp,
+                              integratedAppEventName,
+                              userLatitude,
+                              userLongitude,
+                              uploadType
+                          )
+
+                          if (!isLifecycleOwnerValid()) return@launch
+                          callback(
+                              true, createSuccessStatus(
+                                  NetworkDataResponse(
+                                      message = "SDK Task enqueued"
+                                  )
+                              )
+                          )
+                      }
+                  }
+
+                  UploadType.FTPNetworkDataCapture -> {
+                      SdkContainer.coroutineScope.launch {
+                          val auth = createAuthEntity()
+                          SdkContainer.dao.insertAuthData(auth)
+
+                          val workId = enqueueNetworkDataWork(
+                              auth,
+                              msisdn,
+                              integratedAppVersion,
+                              sdkInitiateTimeStamp,
+                              integratedAppEventName,
+                              userLatitude,
+                              userLongitude,
+                              uploadType
+                          )
+
+                          try {
+                              val result = withTimeoutOrNull(60_000) {
+                                  WorkManager.getInstance(context).getWorkInfoByIdFlow(workId)
+                                      .filter { it?.state?.isFinished == true }.first()
+                              }
+
+                              if (!isLifecycleOwnerValid()) return@launch
+
+                              if (result != null) {
+                                  val response = result.outputData.getString("hostAppResponse")
+
+                                  val networkDataResponse = response?.let {
+                                      Gson().fromJson(it, NetworkDataResponse::class.java)
+                                  } ?: NetworkDataResponse(
+                                      status = "Failed",
+                                      testResult = "Failed",
+                                      statusCode = 400,
+                                      message = "FTP assessment failed."
+                                  )
+                                  callback(true, createSuccessStatus(networkDataResponse))
+
+                              } else {
+                                  // Timeout
+                                  Log.w(
+                                      TAG,
+                                      "FTP assessment timed out after 60s. Cancelling work: $workId"
+                                  )
+                                  WorkManager.getInstance(context).cancelWorkById(workId)
+                                  callback(
+                                      false, createSuccessStatus(
+                                          NetworkDataResponse(
+                                              status = "Failed",
+                                              statusCode = 408,
+                                              message = "FTP assessment timed out."
+                                          )
+                                      )
+                                  )
+                              }
+
+                          } catch (e: Exception) {
+                              Log.e(TAG, "Error during FTP observation", e)
+                              if (!isLifecycleOwnerValid()) return@launch
+                              callback(
+                                  false, createSuccessStatus(
+                                      NetworkDataResponse(
+                                          status = "Failed",
+                                          statusCode = 500,
+                                          message = "Error during FTP assessment: ${e.message}"
+                                      )
+                                  )
+                              )
+
+
+                          }
+                      }
+                  }
+              }
+          }
+      }catch (e: Exception){
+          Log.e(TAG, "Error starting upload process", e)
+          callback(
+              false, createSuccessStatus(
+                  NetworkDataResponse(
+                      status = "Failed",
+                      statusCode = 500,
+                      message = "Error starting upload: ${e.message}"
+                  )
+              )
+          )
+      }
     }
 
     private fun isLifecycleOwnerValid(): Boolean {
@@ -303,19 +315,10 @@ class NetworkDataUploader {
             "userLongitude" to userLongitude
         )
 
-        val constraints = Constraints.Builder().setRequiredNetworkType(
-            if (type == UploadType.NetworkDataCapture) NetworkType.CONNECTED
-            else NetworkType.NOT_REQUIRED
-        ).build()
-
         val workRequest = when (type) {
-            UploadType.NetworkDataCapture -> OneTimeWorkRequestBuilder<NetworkDataWorker>().setConstraints(
-                constraints
-            ).setInputData(inputData).build()
+            UploadType.NetworkDataCapture -> OneTimeWorkRequestBuilder<NetworkDataWorker>().setInputData(inputData).build()
 
-            UploadType.FTPNetworkDataCapture -> OneTimeWorkRequestBuilder<FTPNetworkDataWorker>().setConstraints(
-                constraints
-            ).setInputData(inputData).build()
+            UploadType.FTPNetworkDataCapture -> OneTimeWorkRequestBuilder<FTPNetworkDataWorker>().setInputData(inputData).build()
         }
 
         WorkManager.getInstance(context).enqueue(workRequest)

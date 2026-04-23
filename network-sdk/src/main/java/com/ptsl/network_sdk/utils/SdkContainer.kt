@@ -20,7 +20,7 @@ internal  object SdkContainer {
 
 
     fun init(context: Context){
-        if (this::database.isInitialized) return // Already initialized
+        if (this::database.isInitialized || this::apiService.isInitialized || this:: downloadUploadHelper.isInitialized) return // Already initialized
 
         database = Room.databaseBuilder(
             context,
@@ -34,7 +34,7 @@ internal  object SdkContainer {
             android.util.Log.e("SdkContainer", "Caught unhandled exception in SDK coroutine: ${exception.message}", exception)
         }
         coroutineScope = CoroutineScope(
-            SupervisorJob() + Dispatchers.Default + exceptionHandler
+            SupervisorJob() + Dispatchers.IO + exceptionHandler
         )
 
         apiService = NetworkModule.apiService

@@ -22,11 +22,13 @@ import com.ptsl.network_sdk.db.NetworkDao
 import com.ptsl.network_sdk.dl_ul_test.DownloadUploadHelper
 import com.ptsl.network_sdk.utils.CommonUtils
 import com.ptsl.network_sdk.utils.NetworkEventLogger
+import com.ptsl.network_sdk.utils.SdkContainer
 import com.ptsl.network_sdk.utils.calculateRttAndLatency
 import com.ptsl.network_sdk.utils.prepareDate
 import cz.mroczis.netmonster.core.Milliseconds
 import cz.mroczis.netmonster.core.factory.NetMonsterFactory
 import cz.mroczis.netmonster.core.model.connection.PrimaryConnection
+import kotlinx.coroutines.withTimeout
 import retrofit2.HttpException
 import java.io.IOException
 import java.text.SimpleDateFormat
@@ -41,11 +43,11 @@ import kotlin.text.toDouble
 class NetworkDataWorker(
     appContext: Context,
     workerParams: WorkerParameters,
-    private val apiService: ApiService,
-    private val downloader: DownloadUploadHelper,
-    private val databaseDao: NetworkDao,
 ) : CoroutineWorker(appContext, workerParams) {
 
+    private val apiService: ApiService = SdkContainer.apiService
+    private val downloader: DownloadUploadHelper= SdkContainer.downloadUploadHelper
+    private val databaseDao: NetworkDao= SdkContainer.dao
     private val TAG = "NetworkDataWorker"
 
     override suspend fun doWork(): Result {
@@ -60,13 +62,14 @@ class NetworkDataWorker(
         val newDataList: MutableList<NetworkDataEntity> = mutableListOf()
 
         return try {
+            withTimeout(60_000L) {
             // 1. Fetch current location
             val locationPair = if (CommonUtils.isGpsEnabled(applicationContext)) {
                 LocationHelper.getCurrentLocation(applicationContext)
             } else {
                 Pair(0.0, 0.0)
             }
-            
+
             // 2. Capture network data (signal, RTT, Latency)
             val dataList = getReqData(locationPair, integratedAppEventName).toMutableList()
             for (data in dataList) {
@@ -75,7 +78,7 @@ class NetworkDataWorker(
                 data.sdkInitiateTimeStamp = sdkInitiateTimeStamp
                 data.userLatitude = userLatitude
                 data.userLongitude = userLongitude
-                data.integratedAppVersion=integratedAppVersion
+                data.integratedAppVersion = integratedAppVersion
                 newDataList.add(data)
             }
 
@@ -92,7 +95,9 @@ class NetworkDataWorker(
             clearNetworkDataCache()
             Result.success()
 
-        } catch (e: Exception) {
+        }
+        }
+        catch (e: Exception) {
             var statusCode = 0
             val errorMessage = when (e) {
                 is HttpException -> {

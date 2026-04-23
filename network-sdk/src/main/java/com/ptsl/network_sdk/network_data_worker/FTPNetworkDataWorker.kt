@@ -28,6 +28,7 @@ import com.ptsl.network_sdk.db.NetworkDao
 import com.ptsl.network_sdk.dl_ul_test.DownloadUploadHelper
 import com.ptsl.network_sdk.utils.CommonUtils
 import com.ptsl.network_sdk.utils.NetworkEventLogger
+import com.ptsl.network_sdk.utils.SdkContainer
 import com.ptsl.network_sdk.utils.prepareFTPData
 import cz.mroczis.netmonster.core.factory.NetMonsterFactory
 import cz.mroczis.netmonster.core.model.connection.PrimaryConnection
@@ -43,22 +44,21 @@ import retrofit2.HttpException
 class FTPNetworkDataWorker(
     appContext: Context,
     workerParams: WorkerParameters,
-    private val apiService: ApiService,
-    private val downloader: DownloadUploadHelper,
-    private val databaseDao: NetworkDao,
 ) : CoroutineWorker(appContext, workerParams) {
-
+    private val apiService: ApiService = SdkContainer.apiService
+    private val downloader: DownloadUploadHelper= SdkContainer.downloadUploadHelper
+    private val databaseDao: NetworkDao= SdkContainer.dao
     private val TAG = "FTPNetworkDataWorker"
 
     override suspend fun doWork(): Result {
+        Log.w(TAG,"🚀 Starting FTP Network Data Worker")
         return try {
-            withTimeout(60000) { // Global 60-second timeout
                 // 1. Initial Validations (Permissions, IP Connectivity, SIM)
                 val preFlightError = performPreFlightChecks()
                 if (preFlightError != null) {
                     val (msg, code, status) = preFlightError
                     logValidationFailure(msg, code)
-                    return@withTimeout returnResultToHost("Failed", "Failed", status, msg, null)
+                    return returnResultToHost("Failed", "Failed", status, msg, null)
                 }
 
                 // 1.5 Sync Thresholds if necessary
@@ -74,7 +74,7 @@ class FTPNetworkDataWorker(
                     val msg = "FWA Capture ignored: Not on Banglalink 4G network"
                     Log.w(TAG, msg)
                     logValidationFailure(msg, "FTP_CAPTURE_NOT_4G")
-                    return@withTimeout returnResultToHost(
+                    return returnResultToHost(
                         "Failed", "Failed", 400,
                         "FWA Capture is only supported on Banglalink 4G (LTE) technology.", null
                     )
@@ -84,7 +84,7 @@ class FTPNetworkDataWorker(
                     val msg = "FWA Capture ignored: MNC Mismatch (Not Banglalink)"
                     Log.w(TAG, msg)
                     logValidationFailure(msg, "FTP_CAPTURE_MNC_MISMATCH")
-                    return@withTimeout returnResultToHost(
+                    return returnResultToHost(
                         "Failed", "Failed", 400,
                         "Banglalink SIM and mobile data must be enabled for FWA Capture.", null
                     )
@@ -103,7 +103,6 @@ class FTPNetworkDataWorker(
 
                 // 6. Evaluate Result based on thresholds and return qualitatively
                 processAndReturnFinalResult(ftpData, response.data.assessmentId)
-            }
         } catch (e: TimeoutCancellationException) {
             Log.e(TAG, "❌ Global Timeout during assessment")
             try {
@@ -334,8 +333,8 @@ class FTPNetworkDataWorker(
         }
 
         val cells = try {
-            if (hasRequiredPermissions()) NetMonsterFactory.get(applicationContext)
-                .getCells() else null
+            if (hasRequiredPermissions()) NetMonsterFactory.get(applicationContext).getCells()
+            else null
         } catch (e: Exception) {
             Log.e(TAG, "Error fetching cells: ${e.message}")
             null
