@@ -5,8 +5,6 @@ import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.LifecycleOwner
-import androidx.work.Constraints
-import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.workDataOf
@@ -18,15 +16,11 @@ import com.ptsl.network_sdk.network_data_worker.FTPNetworkDataWorker
 import com.ptsl.network_sdk.network_data_worker.NetworkDataWorker
 import com.ptsl.network_sdk.utils.CheckPermissionHandler
 import com.ptsl.network_sdk.utils.SdkContainer
-import kotlinx.coroutines.Delay
-import kotlinx.coroutines.delay
 import java.lang.ref.WeakReference
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
-import java.util.concurrent.Delayed
-
 /**
  * Main entry point for the Network Measurement SDK. Handles initialization, permission requests,
  * and enqueueing measurement tasks.
@@ -274,7 +268,6 @@ class NetworkDataUploader {
             isSdkInit = this::checkPermissionHandler.isInitialized,
             isLocationEnabled = checkPermissionHandler.isLocationPermissionGranted(),
             isPhoneStateGranted = checkPermissionHandler.isPhoneStatePermissionGranted(),
-            dataSaved = true,
             response = Gson().toJson(networkDataResponse)
         )
     }

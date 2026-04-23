@@ -56,7 +56,10 @@ class CheckPermissionHandler private constructor(
 
     private fun canLaunchUi(): Boolean {
         activity?.let { return !it.isFinishing && !it.isDestroyed }
-        fragment?.let { return it.isAdded && it.activity != null && !it.requireActivity().isFinishing }
+        fragment?.let {
+            val act = it.activity ?: return false
+            return it.isAdded && !act.isFinishing && !act.isDestroyed
+        }
         return false
     }
 
@@ -209,7 +212,8 @@ class CheckPermissionHandler private constructor(
 
     fun isGpsEnabled(): Boolean {
         val ctx = safeContext ?: return false
-        val locationManager = ctx.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        val locationManager = ctx.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
+            ?: return false
         return locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)
     }
 

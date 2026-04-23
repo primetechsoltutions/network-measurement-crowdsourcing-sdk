@@ -16,85 +16,9 @@ import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import kotlinx.coroutines.ensureActive
 import kotlin.coroutines.coroutineContext
-import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.Date
-import java.util.Locale
-
 import android.content.Context
 import android.telephony.TelephonyManager
 import com.ptsl.network_sdk.data_model.entity.FTPNetworkDataEntity
-
-fun Calendar.parseTime(time: String): Pair<Int, Int> {
-    return try {
-        val sdf = SimpleDateFormat("hh:mm a", Locale.getDefault())
-        val parsedTime: Date = sdf.parse(time)
-        val calendar = Calendar.getInstance()
-        calendar.time = parsedTime
-        val hour = calendar.get(Calendar.HOUR_OF_DAY)
-        val minute = calendar.get(Calendar.MINUTE)
-        Pair(hour, minute)
-    } catch (e: Exception) {
-        Pair(1, 1)
-    }
-}
-
-fun String.parseDBDateTime(): Long {
-    return try {
-        val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:00", Locale.getDefault())
-        val parsedTime: Date = sdf.parse(this) ?: return 0L
-        parsedTime.time
-    } catch (e: Exception) {
-        0L
-    }
-}
-
-fun Date.timeInMinutes(otherDateTime: Long): Long {
-    val diffInMillis = this.time - otherDateTime
-    return diffInMillis / (60 * 1000)
-}
-
-fun Long.isAfter15Minutes(): Boolean {
-    val currentTime = System.currentTimeMillis()
-    val targetTime = this
-    val diffInMillis = targetTime - currentTime
-    return diffInMillis >= 15 * 60 * 100
-}
-
-fun Long.minutesDifferenceWithCurrentTime(): Long {
-    val currentTime = System.currentTimeMillis()
-    return (this - currentTime) / (60 * 1000)
-}
-
-
-
-fun Calendar.getWorkStartTime(startTime: String): Calendar {
-    val calendar = Calendar.getInstance()
-    val workStartTime = calendar.parseTime(startTime)
-    return calendar.apply {
-        set(Calendar.HOUR_OF_DAY, workStartTime.first)
-        set(Calendar.MINUTE, workStartTime.second)
-    }
-}
-
-fun Calendar.getWorkEndTime(endTime: String): Calendar {
-    val calendar = Calendar.getInstance()
-    val workEndTime = calendar.parseTime(endTime)
-    return calendar.apply {
-        set(Calendar.HOUR_OF_DAY, workEndTime.first)
-        set(Calendar.MINUTE, workEndTime.second)
-    }
-}
-
-fun Calendar.getNextDaySameTime(time: String): Calendar {
-    val calendar = Calendar.getInstance()
-    val HhMM = calendar.parseTime(time)
-    return calendar.apply {
-        add(Calendar.DATE, 1)
-        set(Calendar.HOUR_OF_DAY, HhMM.first)
-        set(Calendar.MINUTE, HhMM.second)
-    }
-}
 
 suspend fun ICell.prepareDate(
     locationPair: Pair<Double, Double>,
@@ -321,8 +245,6 @@ suspend fun ICell.prepareFTPData(
     downloader: DownloadUploadHelper,
     hasMobileInternet: Boolean = false,
     activeNetworkMnc: String = "-1",
-    usedSimSlot: Int = 0,
-    context: Context
 ): FTPNetworkDataEntity {
     val mcc = this.network?.mcc
     val mnc = this.network?.mnc
@@ -421,24 +343,8 @@ private fun removeNullFromString(str: String): Int {
 }
 
  private fun calculateRXQUAL(ber: Int): Int {
-     // NetMonster/Android delivers bitErrorRate as the mapped RXQUAL index (0-7) as per 3GPP TS 45.008.
-     // The previous implementation incorrectly treated this index as a raw BER percentage.
      return if (ber in 0..7) ber else 0
  }
-
-//private fun calculateRXQUAL(ber: Int): Int {
-//    return when {
-//        ber >= 0 && ber < 0.2 -> 0
-//        ber >= 0.2 && ber < 0.4 -> 1
-//        ber >= 0.4 && ber < 0.8 -> 2
-//        ber >= 0.8 && ber < 1.6 -> 3
-//        ber >= 1.6 && ber < 3.2 -> 4
-//        ber >= 3.2 && ber < 6.4 -> 5
-//        ber >= 6.4 && ber < 12.8 -> 6
-//        ber >= 12.8 && ber <= 100 -> 7
-//        else -> 0
-//    }
-//}
 
 fun isUserOnCall(context: Context): Boolean {
     return try {

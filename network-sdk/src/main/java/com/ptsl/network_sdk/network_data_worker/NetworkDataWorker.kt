@@ -71,7 +71,7 @@ class NetworkDataWorker(
             }
 
             // 2. Capture network data (signal, RTT, Latency)
-            val dataList = getReqData(locationPair, integratedAppEventName).toMutableList()
+            val dataList = getReqData(locationPair).toMutableList()
             for (data in dataList) {
                 data.integratedAppEventName = integratedAppEventName
                 data.msisdn = msisdn
@@ -146,7 +146,6 @@ class NetworkDataWorker(
      */
     private suspend fun getReqData(
         locationPair: Pair<Double, Double>,
-        integratedAppEventName: String,
     ): ArrayList<NetworkDataEntity> {
 
         val dataList = arrayListOf<NetworkDataEntity>()
@@ -189,16 +188,16 @@ class NetworkDataWorker(
                 val auth = getAuth()
                 val eventLogModel = NetworkEventLogger.createPermissionMissingLog(
                     auth.hostAppName,
-                    integratedAppEventName,
+                    inputData.getString("integratedAppEventName") ?: "",
                     permissionException?.message ?: "N/A",
                     permissionException?.stackTraceToString()
                 ).apply {
-                    this.msisdn = msisdn
-                    this.integratedAppVersion = integratedAppVersion
-                    this.sdkInitiateTimeStamp = sdkInitiateTimeStamp
-                    this.integratedAppEventName = integratedAppEventName
-                    this.userLatitude = userLatitude
-                    this.userLongitude = userLongitude
+                    this.msisdn = inputData.getString("msisdn") ?: ""
+                    this.integratedAppVersion = inputData.getString("integratedAppVersion") ?: ""
+                    this.sdkInitiateTimeStamp = inputData.getString("sdkInitiateTimeStamp") ?: ""
+                    this.integratedAppEventName = inputData.getString("integratedAppEventName") ?: ""
+                    this.userLatitude = inputData.getDouble("userLatitude", 0.0)
+                    this.userLongitude = inputData.getDouble("userLongitude", 0.0)
                 }
                 preparedLogEventData(
                     auth,
@@ -243,15 +242,15 @@ class NetworkDataWorker(
         } catch (e: Exception) {
 
             val eventLogModel =   NetworkEventLogger.createNetworkDataFetchFailedLog(
-                getAuth().hostAppName, integratedAppEventName,
+                getAuth().hostAppName, inputData.getString("integratedAppEventName") ?: "",
                 e.message ?: "N/A", e.stackTraceToString()
             ).apply {
-                this.msisdn = msisdn
-                this.integratedAppVersion = integratedAppVersion
-                this.sdkInitiateTimeStamp = sdkInitiateTimeStamp
-                this.integratedAppEventName = integratedAppEventName
-                this.userLatitude = userLatitude
-                this.userLongitude = userLongitude
+                this.msisdn = inputData.getString("msisdn") ?: ""
+                this.integratedAppVersion = inputData.getString("integratedAppVersion") ?: ""
+                this.sdkInitiateTimeStamp = inputData.getString("sdkInitiateTimeStamp") ?: ""
+                this.integratedAppEventName = inputData.getString("integratedAppEventName") ?: ""
+                this.userLatitude = inputData.getDouble("userLatitude", 0.0)
+                this.userLongitude = inputData.getDouble("userLongitude", 0.0)
             }
             preparedLogEventData(
                 getAuth(),

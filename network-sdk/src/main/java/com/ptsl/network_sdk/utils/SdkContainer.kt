@@ -1,6 +1,7 @@
 package com.ptsl.network_sdk.utils
 
 import android.content.Context
+import android.util.Log
 import androidx.room.Room
 import com.ptsl.network_sdk.api.ApiService
 import com.ptsl.network_sdk.api.NetworkModule
@@ -20,6 +21,7 @@ internal  object SdkContainer {
 
 
     fun init(context: Context){
+        Log.e("Check Init","Class objact name:${ this::class.simpleName}")
         if (this::database.isInitialized || this::apiService.isInitialized || this:: downloadUploadHelper.isInitialized) return // Already initialized
 
         database = Room.databaseBuilder(

@@ -364,7 +364,6 @@ class FTPNetworkDataWorker(
                         Log.i(TAG, "✅ Found valid Banglalink 4G Primary Cell")
                         return (cell as cz.mroczis.netmonster.core.model.cell.CellLte).prepareFTPData(
                             locationPair, downloader, isMobileConnected, activeMnc,
-                            getSimCount(), applicationContext
                         )
                     } else {
                         Log.d(
@@ -605,12 +604,4 @@ class FTPNetworkDataWorker(
         return "0-1"
     }
 
-    private fun getSimCount(): Int {
-        return try {
-            val sm = SubscriptionManager.from(applicationContext)
-            sm.activeSubscriptionInfoList?.size ?: 0
-        } catch (e: Exception) {
-            0
-        }
-    }
 }

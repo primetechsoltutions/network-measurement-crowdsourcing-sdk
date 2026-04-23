@@ -43,7 +43,7 @@ class NetworkAssessmentFragment : Fragment() {
 
         (activity as? AppCompatActivity)?.let {
             networkDataUploader = NetworkDataUploader()
-            networkDataUploader?.init(this, "MY_BL")
+            networkDataUploader?.init(it, "MY_BL")
         }
 //        networkDataUploader.init(this, "MyBL")
 
