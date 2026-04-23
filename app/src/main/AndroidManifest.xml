@@ -18,6 +18,9 @@
         android:theme="@style/Theme.NetworkSdk_Event"
         tools:targetApi="31">
         <activity
+            android:name=".ViewPagerActivity"
+            android:exported="false" />
+        <activity
             android:name=".BasicActivity"
             android:exported="false" />
         <activity
@@ -30,11 +33,20 @@
             </intent-filter>
         </activity>
 
+<!--        <provider-->
+<!--            android:name="androidx.startup.InitializationProvider"-->
+<!--            android:authorities="${applicationId}.androidx-startup"-->
+<!--            android:exported="false"-->
+<!--            />-->
+
         <provider
             android:name="androidx.startup.InitializationProvider"
             android:authorities="${applicationId}.androidx-startup"
-            android:exported="false"
-            />
+            android:exported="false">
+            <meta-data
+                android:name="androidx.work.WorkManagerInitializer"
+                android:value="androidx.startup" />
+        </provider>
     </application>
 
 </manifest>

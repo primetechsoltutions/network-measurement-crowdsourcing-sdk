@@ -22,7 +22,7 @@ internal  object SdkContainer {
 
     fun init(context: Context){
         Log.e("Check Init","Class objact name:${ this::class.simpleName}")
-        if (this::database.isInitialized || this::apiService.isInitialized || this:: downloadUploadHelper.isInitialized) return // Already initialized
+        if (this::database.isInitialized && this::apiService.isInitialized && this:: downloadUploadHelper.isInitialized) return // Already initialized
 
         database = Room.databaseBuilder(
             context,

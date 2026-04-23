@@ -5,5 +5,5 @@ data class NetworkDataResponse (
     val testResult: String? = null,
     val statusCode: Int? = null,
     val message: String? = null,
-    val data:  Map<String, Any>? = null
+    val data: AssessmentResult? = null
 )

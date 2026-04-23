@@ -15,9 +15,14 @@ import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import com.google.gson.Gson
 import com.ptsl.network_sdk.api.ApiService
+import com.ptsl.network_sdk.data_model.AssessmentResult
+import com.ptsl.network_sdk.data_model.CellMetadata
 import com.ptsl.network_sdk.data_model.FTPCellInfoGetDataRequest
 import com.ptsl.network_sdk.data_model.FTPNetworkDataRequest
 import com.ptsl.network_sdk.data_model.NetworkDataResponse
+import com.ptsl.network_sdk.data_model.NetworkMetrics
+import com.ptsl.network_sdk.data_model.SpeedMetrics
+import com.ptsl.network_sdk.data_model.UserMetadata
 import com.ptsl.network_sdk.data_model.entity.AuthEntity
 import com.ptsl.network_sdk.data_model.entity.FTPCellInfoGetRequest
 import com.ptsl.network_sdk.data_model.entity.FTPNetworkDataEntity
@@ -227,16 +232,16 @@ class FTPNetworkDataWorker(
     private fun isInternetAvailable(): Boolean {
         return try {
             val cm =
-                applicationContext.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+                applicationContext.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                val network = cm.activeNetwork ?: return false
+                val network = cm?.activeNetwork ?: return false
                 val caps = cm.getNetworkCapabilities(network) ?: return false
                 caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
                         caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
             } else {
                 @Suppress("DEPRECATION")
-                val activeNetworkInfo = cm.activeNetworkInfo
-                activeNetworkInfo != null && activeNetworkInfo.isConnected
+                val activeNetworkInfo = cm?.activeNetworkInfo?: return false
+                activeNetworkInfo.isConnected
             }
         } catch (e: Exception) {
             false
@@ -404,34 +409,31 @@ class FTPNetworkDataWorker(
         val message =
             if (isPass) "Your network assessment was successful." else "Your network assessment failed."
 
-        val dataMap = mapOf(
-            "assessmentId" to assessmentId,
-            "networkData" to mapOf(
-                "RSRP" to ftpData.rsrp,
-                "SNR" to ftpData.snr,
-                "RSRQ" to ftpData.rsrq
+        val dataResult = AssessmentResult(
+            assessmentId = assessmentId,
+            networkData = NetworkMetrics(
+                RSRP = ftpData.rsrp,
+                SNR = ftpData.snr,
+                RSRQ = ftpData.rsrq
             ),
-            "cellInfo" to mapOf(
-                "cellName" to ftpData.cellName,
-                "eNodeBName" to ftpData.eNodeBName,
-                "nbhDlThroughputMbps" to ftpData.nbhDlThroughputMbps,
-                "nbhTrafficGB" to ftpData.nbhTrafficGb
+            cellInfo = CellMetadata(
+                cellName = ftpData.cellName,
+                eNodeBName = ftpData.eNodeBName,
+                nbhDlThroughputMbps = ftpData.nbhDlThroughputMbps,
+                nbhTrafficGB = ftpData.nbhTrafficGb
             ),
-            "speedPair" to mapOf(
-                "ulSpeedKbps" to ftpData.ulSpeed,
-                "dlSpeedKbps" to ftpData.dlSpeed
-            ),
-            "userInfo" to mapOf(
-                "deviceManufacture" to ftpData.deviceManufacture,
-                "deviceModel" to ftpData.deviceModel,
-                "deviceOsVersion" to ftpData.deviceOsVersion,
-                "latitude" to ftpData.latitude,
-                "longitude" to ftpData.longitude,
-                "msisdn" to ftpData.msisdn,
+            speedPair = SpeedMetrics(ulSpeedKbps = ftpData.ulSpeed, dlSpeedKbps = ftpData.dlSpeed),
+            userInfo = UserMetadata(
+                deviceManufacture = ftpData.deviceManufacture,
+                deviceModel = ftpData.deviceModel,
+                deviceOsVersion = ftpData.deviceOsVersion,
+                latitude = ftpData.latitude,
+                longitude = ftpData.longitude,
+                msisdn = ftpData.msisdn,
             )
         )
 
-        return returnResultToHost(status, testResult, statusCode, message, dataMap)
+        return returnResultToHost(status, testResult, statusCode, message, dataResult)
     }
 
     private suspend fun updateThresholdsIfNeeded() {
@@ -529,7 +531,7 @@ class FTPNetworkDataWorker(
         testResult: String,
         statusCode: Int,
         message: String,
-        data: Map<String, Any>?
+        data: AssessmentResult?
     ): Result {
 
 
@@ -573,18 +575,18 @@ class FTPNetworkDataWorker(
     private fun is4GConnected(): Boolean {
         return try {
             val telephonyManager =
-                applicationContext.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+                applicationContext.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager
             val networkType = if (ActivityCompat.checkSelfPermission(
                     applicationContext,
                     Manifest.permission.READ_PHONE_STATE
                 ) == PackageManager.PERMISSION_GRANTED
             ) {
-                telephonyManager.dataNetworkType
+                telephonyManager?.dataNetworkType?: false
             } else {
                 TelephonyManager.NETWORK_TYPE_UNKNOWN
             }
             networkType == TelephonyManager.NETWORK_TYPE_LTE
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             false
         }
     }

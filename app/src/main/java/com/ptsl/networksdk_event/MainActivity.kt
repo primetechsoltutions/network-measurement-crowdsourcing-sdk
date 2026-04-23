@@ -36,6 +36,11 @@ class MainActivity : AppCompatActivity() {
             startMeasurement(UploadType.NetworkDataCapture, "MainActivity Standard Capture 2")
         }
 
+        findViewById<View>(R.id.btn_open_viewpager).setOnClickListener {
+            val intent = Intent(this, ViewPagerActivity::class.java)
+            startActivity(intent)
+        }
+
         findViewById<View>(R.id.btn_navigate_basic).setOnClickListener {
             val intent = Intent(this, BasicActivity::class.java)
             startActivity(intent)

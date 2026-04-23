@@ -30,7 +30,7 @@ object CommonUtils {
 
     /** Check if GPS is enabled */
     fun isGpsEnabled(context: android.content.Context): Boolean {
-        val locationManager = context.getSystemService(android.content.Context.LOCATION_SERVICE) as android.location.LocationManager
-        return locationManager.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER)
+        val locationManager = context.getSystemService(android.content.Context.LOCATION_SERVICE) as? android.location.LocationManager
+        return locationManager?.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER)?:false
     }
 }

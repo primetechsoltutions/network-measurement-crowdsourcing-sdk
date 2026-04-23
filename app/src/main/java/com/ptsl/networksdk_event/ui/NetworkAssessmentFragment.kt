@@ -41,11 +41,11 @@ class NetworkAssessmentFragment : Fragment() {
         // Initialize a new uploader instance for this fragment
         networkDataUploader = NetworkDataUploader()
 
-        (activity as? AppCompatActivity)?.let {
-            networkDataUploader = NetworkDataUploader()
-            networkDataUploader?.init(it, "MY_BL")
-        }
-//        networkDataUploader.init(this, "MyBL")
+//        (activity as? AppCompatActivity)?.let {
+//            networkDataUploader = NetworkDataUploader()
+//            networkDataUploader?.init(it, "MY_BL")
+//        }
+        networkDataUploader.init(this, "MyBL")
 
         resultTextView = view.findViewById(R.id.resultTextView)
         loadingOverlay = view.findViewById(R.id.loadingOverlay)
