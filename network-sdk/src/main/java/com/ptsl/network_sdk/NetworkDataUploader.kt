@@ -18,8 +18,10 @@ import com.ptsl.network_sdk.network_data_worker.NetworkDataWorker
 import com.ptsl.network_sdk.utils.CheckPermissionHandler
 import com.ptsl.network_sdk.utils.SdkContainer
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.lang.ref.WeakReference
 
 /**
@@ -151,7 +153,7 @@ class NetworkDataUploader {
                             val auth = createAuthEntity()
                             SdkContainer.dao?.insertAuthData(auth)
 
-                            val ftpResponse =
+                            val ftpResponse = withTimeoutOrNull(60_000L) {
                                 SdkContainer.apiService?.let { apiService ->
                                     SdkContainer.downloadUploadHelper?.let { downloader ->
                                         SdkContainer.dao?.let { dao ->
@@ -174,7 +176,7 @@ class NetworkDataUploader {
                                             userLongitude
                                         )
                                     )
-
+                            }
                             if (ftpResponse != null) {
                                 dispatchCallback(
                                     callback,
@@ -185,7 +187,11 @@ class NetworkDataUploader {
                                 dispatchCallback(
                                     callback,
                                     null.equals("Success", ignoreCase = true),
-                                    createSuccessStatus()
+                                    createSuccessStatus( NetworkDataResponse(
+                                        status = "Failed",
+                                        statusCode = 500,
+                                        message = "Assessment time out"
+                                    ))
                                 )
                             }
 
@@ -305,10 +311,6 @@ class NetworkDataUploader {
         )
 
         val workRequest = OneTimeWorkRequestBuilder<NetworkDataWorker>()
-            .setInitialDelay(
-                10,
-                java.util.concurrent.TimeUnit.SECONDS
-            ) // Optional: delay to ensure permissions are settled
             .setInputData(inputData).build()
 
         WorkManager.getInstance(context).enqueue(workRequest)
