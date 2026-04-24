@@ -12,29 +12,21 @@ import androidx.core.app.ActivityCompat
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.google.gson.Gson
-import com.ptsl.network_sdk.api.ApiService
 import com.ptsl.network_sdk.data_model.NetworkDataRequest
 import com.ptsl.network_sdk.data_model.entity.AuthEntity
 import com.ptsl.network_sdk.data_model.entity.NetworkDataEntity
 import com.ptsl.network_sdk.data_model.logger.EventLogModel
 import com.ptsl.network_sdk.data_model.logger.LogDataWrapper
-import com.ptsl.network_sdk.db.NetworkDao
-import com.ptsl.network_sdk.dl_ul_test.DownloadUploadHelper
 import com.ptsl.network_sdk.utils.CommonUtils
 import com.ptsl.network_sdk.utils.NetworkEventLogger
 import com.ptsl.network_sdk.utils.SdkContainer
 import com.ptsl.network_sdk.utils.calculateRttAndLatency
 import com.ptsl.network_sdk.utils.prepareDate
-import cz.mroczis.netmonster.core.Milliseconds
 import cz.mroczis.netmonster.core.factory.NetMonsterFactory
 import cz.mroczis.netmonster.core.model.connection.PrimaryConnection
 import kotlinx.coroutines.withTimeout
 import retrofit2.HttpException
 import java.io.IOException
-import java.text.SimpleDateFormat
-import java.util.Locale
-import kotlin.math.roundToInt
-import kotlin.text.toDouble
 
 /**
  * Worker responsible for periodic background network data collection.
@@ -44,11 +36,14 @@ class NetworkDataWorker(
     appContext: Context,
     workerParams: WorkerParameters,
 ) : CoroutineWorker(appContext, workerParams) {
-
-    private val apiService: ApiService = SdkContainer.apiService
-    private val downloader: DownloadUploadHelper= SdkContainer.downloadUploadHelper
-    private val databaseDao: NetworkDao= SdkContainer.dao
     private val TAG = "NetworkDataWorker"
+    private val sdk by lazy {
+        SdkContainer.init(applicationContext)
+        SdkContainer
+    }
+    private val apiService get() = sdk.apiService
+    private val downloader get() = sdk.downloadUploadHelper
+    private val databaseDao get() = sdk.dao
 
     override suspend fun doWork(): Result {
         val msisdn = inputData.getString("msisdn") ?: ""
@@ -60,44 +55,44 @@ class NetworkDataWorker(
 
         val authEntity = getAuth()
         val newDataList: MutableList<NetworkDataEntity> = mutableListOf()
-
+        if (apiService == null || databaseDao == null || databaseDao == null) {
+            return Result.failure()
+        }
         return try {
             withTimeout(60_000L) {
-            // 1. Fetch current location
-            val locationPair = if (CommonUtils.isGpsEnabled(applicationContext)) {
-                LocationHelper.getCurrentLocation(applicationContext)
-            } else {
-                Pair(0.0, 0.0)
+                // 1. Fetch current location
+                val locationPair = if (CommonUtils.isGpsEnabled(applicationContext)) {
+                    LocationHelper.getCurrentLocation(applicationContext)
+                } else {
+                    Pair(0.0, 0.0)
+                }
+
+                // 2. Capture network data (signal, RTT, Latency)
+                val dataList = getReqData(locationPair).toMutableList()
+                for (data in dataList) {
+                    data.integratedAppEventName = integratedAppEventName
+                    data.msisdn = msisdn
+                    data.sdkInitiateTimeStamp = sdkInitiateTimeStamp
+                    data.userLatitude = userLatitude
+                    data.userLongitude = userLongitude
+                    data.integratedAppVersion = integratedAppVersion
+                    newDataList.add(data)
+                }
+
+                // 3. Merge with any cached data from previous failed attempts
+                val localData = databaseDao?.getNetworkData()
+                val mergeData: List<NetworkDataEntity> = newDataList + (localData ?: emptyList())
+
+                // 4. Send network data to backend
+                apiService?.postNetworkData(
+                    NetworkDataRequest(authEntity, mergeData)
+                )
+                Log.i(TAG, "✅ Network data uploaded successfully")
+
+                clearNetworkDataCache()
+                Result.success()
             }
-
-            // 2. Capture network data (signal, RTT, Latency)
-            val dataList = getReqData(locationPair).toMutableList()
-            for (data in dataList) {
-                data.integratedAppEventName = integratedAppEventName
-                data.msisdn = msisdn
-                data.sdkInitiateTimeStamp = sdkInitiateTimeStamp
-                data.userLatitude = userLatitude
-                data.userLongitude = userLongitude
-                data.integratedAppVersion = integratedAppVersion
-                newDataList.add(data)
-            }
-
-            // 3. Merge with any cached data from previous failed attempts
-            val localData = databaseDao.getNetworkData()
-            val mergeData: List<NetworkDataEntity> = newDataList + (localData ?: emptyList())
-
-            // 4. Send network data to backend
-            apiService.postNetworkData(
-                NetworkDataRequest(authEntity, mergeData)
-            )
-            Log.i(TAG, "✅ Network data uploaded successfully")
-
-            clearNetworkDataCache()
-            Result.success()
-
-        }
-        }
-        catch (e: Exception) {
+        } catch (e: Exception) {
             var statusCode = 0
             val errorMessage = when (e) {
                 is HttpException -> {
@@ -109,6 +104,7 @@ class NetworkDataWorker(
                     }
                     "HTTP error: ${e.code()} ${e.message}${if (errorBody != null) " | Body: $errorBody" else ""}"
                 }
+
                 is IOException -> "Network error: ${e.message}"
                 else -> "Unexpected error: ${e.message}"
             }
@@ -124,7 +120,11 @@ class NetworkDataWorker(
             }
 
             val eventLogModel = NetworkEventLogger.createNetworkRequestFailedLog(
-                authEntity.hostAppName, eventName = integratedAppEventName, errorMessage=errorMessage, stackTrace = failedRequest, statusCode = statusCode
+                authEntity.hostAppName,
+                eventName = integratedAppEventName,
+                errorMessage = errorMessage,
+                stackTrace = failedRequest,
+                statusCode = statusCode
             ).apply {
                 this.msisdn = msisdn
                 this.integratedAppVersion = integratedAppVersion
@@ -134,12 +134,12 @@ class NetworkDataWorker(
                 this.userLongitude = userLongitude
             }
             preparedLogEventData(authEntity, eventLogModel)
-            
+
             Result.failure()
         }
     }
 
-    private suspend fun getAuth(): AuthEntity = databaseDao.getPersistentAuth() ?: AuthEntity()
+    private suspend fun getAuth(): AuthEntity = databaseDao?.getPersistentAuth() ?: AuthEntity()
 
     /**
      * Captures core network metrics and cell info.
@@ -154,7 +154,7 @@ class NetworkDataWorker(
             val testUrl = "https://crsrcgz.banglalink.net"
             val isMobileConnected = isMobileNetworkConnected(applicationContext)
             val activeNetworkMnc = if (isMobileConnected) getActiveNetworkMNC() else "-1"
-            
+
             val metrics = calculateRttAndLatency(
                 hasMobileInternet = true,
                 testUrl = testUrl
@@ -168,9 +168,9 @@ class NetworkDataWorker(
                 val hasPermission = ActivityCompat.checkSelfPermission(
                     applicationContext, Manifest.permission.ACCESS_FINE_LOCATION
                 ) == PackageManager.PERMISSION_GRANTED ||
-                ActivityCompat.checkSelfPermission(
-                    applicationContext, Manifest.permission.ACCESS_COARSE_LOCATION
-                ) == PackageManager.PERMISSION_GRANTED
+                        ActivityCompat.checkSelfPermission(
+                            applicationContext, Manifest.permission.ACCESS_COARSE_LOCATION
+                        ) == PackageManager.PERMISSION_GRANTED
 
                 if (hasPermission) {
                     NetMonsterFactory.get(applicationContext).getCells()
@@ -195,7 +195,8 @@ class NetworkDataWorker(
                     this.msisdn = inputData.getString("msisdn") ?: ""
                     this.integratedAppVersion = inputData.getString("integratedAppVersion") ?: ""
                     this.sdkInitiateTimeStamp = inputData.getString("sdkInitiateTimeStamp") ?: ""
-                    this.integratedAppEventName = inputData.getString("integratedAppEventName") ?: ""
+                    this.integratedAppEventName =
+                        inputData.getString("integratedAppEventName") ?: ""
                     this.userLatitude = inputData.getDouble("userLatitude", 0.0)
                     this.userLongitude = inputData.getDouble("userLongitude", 0.0)
                 }
@@ -226,14 +227,20 @@ class NetworkDataWorker(
             // Process connection-primary cells
             cells.forEach { cell ->
                 if (cell.connectionStatus is PrimaryConnection) {
-                    dataList.add(
-                        cell.prepareDate(
-                            locationPair, downloader, isMobileConnected, activeNetworkMnc, getSimCount(),
-                            rtt = CommonUtils.round2(metrics.rtt),
-                            latency = CommonUtils.round2(metrics.latency),
-                            applicationContext
+                    downloader?.let {
+                        dataList.add(
+                            cell.prepareDate(
+                                locationPair,
+                                it,
+                                isMobileConnected,
+                                activeNetworkMnc,
+                                getSimCount(),
+                                rtt = CommonUtils.round2(metrics.rtt),
+                                latency = CommonUtils.round2(metrics.latency),
+                                applicationContext
+                            )
                         )
-                    )
+                    }
                 }
             }
 
@@ -241,7 +248,7 @@ class NetworkDataWorker(
 
         } catch (e: Exception) {
 
-            val eventLogModel =   NetworkEventLogger.createNetworkDataFetchFailedLog(
+            val eventLogModel = NetworkEventLogger.createNetworkDataFetchFailedLog(
                 getAuth().hostAppName, inputData.getString("integratedAppEventName") ?: "",
                 e.message ?: "N/A", e.stackTraceToString()
             ).apply {
@@ -263,8 +270,8 @@ class NetworkDataWorker(
 
     private fun isMobileNetworkConnected(context: Context): Boolean {
         return try {
-            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-            val network = cm.activeNetwork ?: return false
+            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+            val network = cm?.activeNetwork ?: return false
             val caps = cm.getNetworkCapabilities(network) ?: return false
             caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
         } catch (e: Exception) {
@@ -290,13 +297,13 @@ class NetworkDataWorker(
     private suspend fun preparedLogEventData(auth: AuthEntity, eventLogModel: EventLogModel) {
         try {
             val logsToSend = mutableListOf<EventLogModel>()
-            val cachedCount = databaseDao.getNetworkDataLogEventCount()
+            val cachedCount = databaseDao?.getNetworkDataLogEventCount() ?: 0
             if (cachedCount > 0) {
-                logsToSend.addAll(databaseDao.getNetworkDataLogEvent())
+                logsToSend.addAll(databaseDao?.getNetworkDataLogEvent() ?: emptyList())
             }
             logsToSend.add(eventLogModel)
 
-            apiService.postNetworkDataLogs(LogDataWrapper(auth, ArrayList(logsToSend)))
+            apiService?.postNetworkDataLogs(LogDataWrapper(auth, ArrayList(logsToSend)))
 
             if (cachedCount > 0) {
                 clearNetworkDataCacheLog()
@@ -309,7 +316,7 @@ class NetworkDataWorker(
     private suspend fun insertNetworkDataInDb(newDataList: List<NetworkDataEntity>) {
         try {
             if (newDataList.isNotEmpty()) {
-                databaseDao.insertNetworkData(newDataList)
+                databaseDao?.insertNetworkData(newDataList)
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error caching network data", e)
@@ -317,17 +324,18 @@ class NetworkDataWorker(
     }
 
     private suspend fun clearNetworkDataCache() {
-        databaseDao.deleteNetworkData()
+        databaseDao?.deleteNetworkData()
     }
 
     private suspend fun clearNetworkDataCacheLog() {
-        databaseDao.deleteNetworkDataLogEvent()
+        databaseDao?.deleteNetworkDataLogEvent()
     }
 
     private suspend fun insertNetworkDataLogInDb(eventLogModel: EventLogModel) {
         try {
-            databaseDao.insertNetworkDataLogIntoDB(eventLogModel)
-        } catch (_: Exception) { }
+            databaseDao?.insertNetworkDataLogIntoDB(eventLogModel)
+        } catch (_: Exception) {
+        }
     }
 
     private fun getSimCount(): Int {

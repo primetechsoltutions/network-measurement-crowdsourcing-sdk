@@ -54,7 +54,7 @@ abstract class BaseSDKTestFragment : Fragment() {
             "1.1.0-demo",
             currentDate,
             "$fragmentName Capture",
-            uploadType = UploadType.NetworkDataCapture
+            uploadType = UploadType.FTPNetworkDataCapture
         ) { success, status ->
             activity?.runOnUiThread {
                 Log.d("SDK_RESPONSE", "$fragmentName Status: $success, Message: ${status.response}")
