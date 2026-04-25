@@ -97,7 +97,7 @@ class NetworkDataUploader {
 
         if (SdkContainer.coroutineScope == null || SdkContainer.dao == null || SdkContainer.apiService == null || SdkContainer.downloadUploadHelper == null || SdkContainer.database == null) {
             return dispatchCallback(
-                callback,false, createSuccessStatus(
+                callback, false, createSuccessStatus(
                     NetworkDataResponse(
                         status = "Failed", statusCode = 500, message = "SDK not initialized"
                     )
@@ -150,8 +150,7 @@ class NetworkDataUploader {
                             )
 
                             dispatchCallback(
-                                callback,
-                                true, createSuccessStatus(
+                                callback, true, createSuccessStatus(
                                     NetworkDataResponse(
                                         message = "SDK Task enqueued"
                                     )
@@ -170,24 +169,20 @@ class NetworkDataUploader {
                                     SdkContainer.downloadUploadHelper?.let { downloader ->
                                         SdkContainer.dao?.let { dao ->
                                             FTPAssessmentExecutor(
-                                                context,
-                                                apiService,
-                                                downloader,
-                                                dao
+                                                context, apiService, downloader, dao
                                             )
                                         }
                                     }
-                                }
-                                    ?.execute(
-                                        FTPAssessmentExecutionInput(
-                                            msisdn,
-                                            integratedAppVersion,
-                                            sdkInitiateTimeStamp,
-                                            integratedAppEventName,
-                                            userLatitude,
-                                            userLongitude
-                                        )
+                                }?.execute(
+                                    FTPAssessmentExecutionInput(
+                                        msisdn,
+                                        integratedAppVersion,
+                                        sdkInitiateTimeStamp,
+                                        integratedAppEventName,
+                                        userLatitude,
+                                        userLongitude
                                     )
+                                )
                             }
                             if (ftpResponse != null) {
                                 dispatchCallback(
@@ -197,13 +192,13 @@ class NetworkDataUploader {
                                 )
                             } else {
                                 dispatchCallback(
-                                    callback,
-                                    false,
-                                    createSuccessStatus( NetworkDataResponse(
-                                        status = "Failed",
-                                        statusCode = 500,
-                                        message = "Assessment Failed"
-                                    ))
+                                    callback, false, createSuccessStatus(
+                                        NetworkDataResponse(
+                                            status = "Failed",
+                                            statusCode = 500,
+                                            message = "Assessment Failed"
+                                        )
+                                    )
                                 )
                             }
 
@@ -214,9 +209,7 @@ class NetworkDataUploader {
         } catch (e: Exception) {
             Log.e(TAG, "Error starting upload process", e)
             dispatchCallback(
-                callback,
-                false,
-                createSuccessStatus(
+                callback, false, createSuccessStatus(
                     NetworkDataResponse(
                         status = "Failed",
                         statusCode = 500,
@@ -229,9 +222,7 @@ class NetworkDataUploader {
 
 
     private fun dispatchCallback(
-        callback: (Boolean, UploadStatus) -> Unit,
-        success: Boolean,
-        status: UploadStatus
+        callback: (Boolean, UploadStatus) -> Unit, success: Boolean, status: UploadStatus
     ) {
         SdkContainer.coroutineScope?.launch {
             withContext(Dispatchers.Main) {
@@ -312,28 +303,29 @@ class NetworkDataUploader {
         userLongitude: Double,
     ): java.util.UUID {
 
- try {
-     val inputData = workDataOf(
-         "msisdn" to msisdn,
-         "integratedAppVersion" to integratedAppVersion,
-         "sdkInitiateTimeStamp" to sdkInitiateTimeStamp,
-         "integratedAppEventName" to integratedAppEventName,
-         "sdkVersion" to authEntity.sdkVersion,
-         "userLatitude" to userLatitude,
-         "userLongitude" to userLongitude
-     )
+        try {
+            val inputData = workDataOf(
+                "msisdn" to msisdn,
+                "integratedAppVersion" to integratedAppVersion,
+                "sdkInitiateTimeStamp" to sdkInitiateTimeStamp,
+                "integratedAppEventName" to integratedAppEventName,
+                "sdkVersion" to authEntity.sdkVersion,
+                "userLatitude" to userLatitude,
+                "userLongitude" to userLongitude
+            )
 
-     val workRequest = OneTimeWorkRequestBuilder<NetworkDataWorker>()
-         .setInputData(inputData).build()
+            val workRequest =
+                OneTimeWorkRequestBuilder<NetworkDataWorker>().setInputData(inputData).build()
 
-     WorkManager.getInstance(context).enqueue(workRequest)
-     Log.d(TAG, "Enqueued ${UploadType.NetworkDataCapture.name} with ID: ${workRequest.id}")
-     return workRequest.id
- }catch (e: Exception) {
-     Log.e(TAG, "Failed to enqueue work: ${e.message}", e)
-return java.util.UUID(0,  0) }
- }
+            WorkManager.getInstance(context).enqueue(workRequest)
+            Log.d(TAG, "Enqueued ${UploadType.NetworkDataCapture.name} with ID: ${workRequest.id}")
+            return workRequest.id
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to enqueue work: ${e.message}", e)
+            return java.util.UUID(0, 0)
+        }
     }
+}
 
 /** Defines the available measurement types. */
 enum class UploadType {
