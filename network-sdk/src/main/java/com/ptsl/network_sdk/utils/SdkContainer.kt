@@ -15,7 +15,6 @@ import kotlinx.coroutines.SupervisorJob
 
 internal object SdkContainer {
     @Volatile
-    var initialized = false
     var database: NetworkDatabase? = null
     var dao: NetworkDao? = null
     var coroutineScope: CoroutineScope ? = null
@@ -24,7 +23,6 @@ internal object SdkContainer {
 
     @Synchronized
     fun init(context: Context) {
-        if (initialized) return
         try {
             val appContext = context.applicationContext
             database = Room.databaseBuilder(
@@ -42,11 +40,9 @@ internal object SdkContainer {
             )
             apiService = NetworkModule.apiService
             downloadUploadHelper = apiService?.let { DownloadUploadHelper(it) }
-            initialized = true
             Log.e("Check Init", "SdkContainer initialized successfully")
         } catch (e: Exception) {
             Log.e("SdkContainer", "Init failed: ${e.message}", e)
-            initialized = false
         }
     }
 }

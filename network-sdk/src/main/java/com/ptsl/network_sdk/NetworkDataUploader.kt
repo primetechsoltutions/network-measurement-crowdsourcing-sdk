@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.LifecycleOwner
+import androidx.work.Configuration
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.workDataOf
@@ -80,7 +81,7 @@ class NetworkDataUploader {
         uploadType: UploadType,
         callback: (Boolean, UploadStatus) -> Unit
     ) {
-        if (!this::checkPermissionHandler.isInitialized || !SdkContainer.initialized) {
+        if (!this::checkPermissionHandler.isInitialized) {
             Log.e(TAG, "SDK not initialized. Call init() first.")
             callback(
                 false, UploadStatus(
@@ -94,7 +95,18 @@ class NetworkDataUploader {
             return
         }
 
+        if (SdkContainer.coroutineScope == null || SdkContainer.dao == null || SdkContainer.apiService == null || SdkContainer.downloadUploadHelper == null || SdkContainer.database == null) {
+            return dispatchCallback(
+                callback,false, createSuccessStatus(
+                    NetworkDataResponse(
+                        status = "Failed", statusCode = 500, message = "SDK not initialized"
+                    )
+                )
+            )
+        }
+
         try {
+
             val ignoreGpsLimit = uploadType == UploadType.FTPNetworkDataCapture
             requestPermission(ignoreGpsLimit) { isGranted ->
                 if (!isGranted && uploadType == UploadType.FTPNetworkDataCapture) {
@@ -186,11 +198,11 @@ class NetworkDataUploader {
                             } else {
                                 dispatchCallback(
                                     callback,
-                                    null.equals("Success", ignoreCase = true),
+                                    false,
                                     createSuccessStatus( NetworkDataResponse(
                                         status = "Failed",
                                         statusCode = 500,
-                                        message = "Assessment time out"
+                                        message = "Assessment Failed"
                                     ))
                                 )
                             }
@@ -208,7 +220,7 @@ class NetworkDataUploader {
                     NetworkDataResponse(
                         status = "Failed",
                         statusCode = 500,
-                        message = "Error starting upload: ${e.message}"
+                        message = "Error starting upload process"
                     )
                 )
             )
@@ -313,9 +325,25 @@ class NetworkDataUploader {
         val workRequest = OneTimeWorkRequestBuilder<NetworkDataWorker>()
             .setInputData(inputData).build()
 
-        WorkManager.getInstance(context).enqueue(workRequest)
+        getWorkManager(context).enqueue(workRequest)
         Log.d(TAG, "Enqueued ${UploadType.NetworkDataCapture.name} with ID: ${workRequest.id}")
         return workRequest.id
+    }
+    /**
+     * Safely obtains a [WorkManager] instance.
+     *
+     * Some host apps disable the default `WorkManagerInitializer` in their manifest
+     * (via `tools:node="remove"`) and use custom initialization. If `getInstance()` throws,
+     * we fall back to initializing WorkManager with a default [Configuration].
+     */
+    private fun getWorkManager(context: Context): WorkManager {
+        return try {
+            WorkManager.getInstance(context)
+        } catch (e: IllegalStateException) {
+            Log.w(TAG, "WorkManager not initialized by host app, initializing with default config", e)
+            WorkManager.initialize(context, Configuration.Builder().build())
+            WorkManager.getInstance(context)
+        }
     }
 }
 

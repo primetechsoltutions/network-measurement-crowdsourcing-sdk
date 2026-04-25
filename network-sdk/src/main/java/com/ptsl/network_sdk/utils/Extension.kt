@@ -23,221 +23,116 @@ import com.ptsl.network_sdk.data_model.entity.FTPNetworkDataEntity
 suspend fun ICell.prepareDate(
     locationPair: Pair<Double, Double>,
     downloader: DownloadUploadHelper,
-    hasMobileInternet: Boolean=false,
-    activeNetworkMnc : String = "-1",
+    hasMobileInternet: Boolean = false,
+    activeNetworkMnc: String = "-1",
     usedSimSlot: Int = 0,
-    rtt:Double=0.0,
-    latency:Double=0.0,
+    rtt: Double = 0.0,
+    latency: Double = 0.0,
     context: Context
 ): NetworkDataEntity {
     val mcc = this.network?.mcc
     val mnc = this.network?.mnc
-    Log.e("MNC", "MNC : ${mnc}")
-    return when (this) {
-        is CellCdma -> {
-            val speedPair = downloader.getBandWidthSpeed(networkType = "2G",hasMobileInternet= hasMobileInternet, currentMnc = mnc, activeNetworkMnc = activeNetworkMnc)
-            return NetworkDataEntity().also {
-                it.time = CommonUtils.getCurrentDateTime()
-                it.date = CommonUtils.getCurrentDate()
-                it.mcc = "${removeNullFromString("${mcc}")}"
-                it.mnc = "${removeNullFromString("${mnc}")}"
-                it.type = "CDMA"
-                it.band = "${removeNullFromString(this.band?.name ?: "")}"
-                it.snr = removeNullFromString("${this.signal.evdoSnr}")
-                it.rssi = removeNullFromString("${this.signal.cdmaRssi}")
-                it.lattitude = locationPair.first
-                it.longitude = locationPair.second
-                it.dlspeed = speedPair.downloadSpeedKbps
-                it.ulspeed = speedPair.uploadSpeedKbps
-                it.deviceModel = "${Build.MODEL}"
-                it.data = if (hasMobileInternet) "Mobile" else "Wifi"
-                it.isDataCaptureOffline = false
-                it.isUserDeviceOnCall = isUserOnCall(context = context)
-                it.deviceManufacture ="${Build.MANUFACTURER}"
-                it.deviceOsVersion ="${Build.VERSION.SDK_INT}"
-                it.usedSimSlot= usedSimSlot
-                it.rtt = rtt
-                it.latency =latency
-                it.totalUploadVolume=speedPair.totalUploadMB
-                it.totalDownloadVolume=speedPair.totalDownloadMB
-            }
-        }
+    Log.d("MNC", "MNC : $mnc")
 
-        is CellGsm -> {
-            val speedPair = downloader.getBandWidthSpeed(networkType = "2G",hasMobileInternet= hasMobileInternet, currentMnc = mnc, activeNetworkMnc = activeNetworkMnc)
-            return NetworkDataEntity().also {
-                it.time = CommonUtils.getCurrentDateTime()
-                it.date = CommonUtils.getCurrentDate()
-                it.mcc = "${removeNullFromString("${mcc}")}"
-                it.mnc = "${removeNullFromString("${mnc}")}"
-                it.lac = removeNullFromString("${this.lac}")
-                it.type = "2G"
-                it.cid = removeNullFromString("${this.cid}")
-                it.arfcn = removeNullFromString("${this.band?.arfcn}")
-                it.ta = removeNullFromString("${this.signal.timingAdvance}")
-                it.band = "${removeNullFromString(this.band?.name ?: "")}"
-                it.rxlev = removeNullFromString("${this.signal.rssi}")
-                it.rxQual = removeNullFromString("${this.signal.bitErrorRate?.let {value -> calculateRXQUAL(
-                    value
-                )}}")
-                it.bitRateError = removeNullFromString("${this.signal.bitErrorRate}")
-                it.rssi = removeNullFromString("${this.signal.rssi}")
-                it.lattitude = locationPair.first
-                it.longitude = locationPair.second
-                it.dlspeed = speedPair.downloadSpeedKbps
-                it.ulspeed = speedPair.uploadSpeedKbps
-                it.deviceModel = "${Build.MODEL}"
-                it.data = if (hasMobileInternet) "Mobile" else "Wifi"
-                it.isDataCaptureOffline = false
-                it.isUserDeviceOnCall = isUserOnCall(context = context)
-                it.deviceManufacture ="${Build.MANUFACTURER}"
-                it.deviceOsVersion ="${Build.VERSION.SDK_INT}"
-                it.usedSimSlot= usedSimSlot
-                it.rtt = rtt
-                it.latency =latency
-                it.totalUploadVolume=speedPair.totalUploadMB
-                it.totalDownloadVolume=speedPair.totalDownloadMB
-
-            }
-        }
-
-        is CellWcdma -> {
-            val speedPair = downloader.getBandWidthSpeed(networkType = "3G",hasMobileInternet= hasMobileInternet, currentMnc = mnc, activeNetworkMnc = activeNetworkMnc)
-            return NetworkDataEntity().also {
-                it.time = CommonUtils.getCurrentDateTime()
-                it.date = CommonUtils.getCurrentDate()
-                it.mcc = "${removeNullFromString("${mcc}")}"
-                it.mnc = "${removeNullFromString("${mnc}")}"
-                it.lac = removeNullFromString("${this.lac}")
-                it.type = "3G"
-                it.cid = removeNullFromString("${this.cid}")
-                it.psc = removeNullFromString("${this.psc}")
-                it.arfcn = removeNullFromString("${this.band?.downlinkUarfcn ?: ""}")
-                it.band = "${removeNullFromString(this.band?.name ?: "")}"
-                it.rscp = removeNullFromString("${this.signal.rscp}")
-                it.ecNo = removeNullFromString("${this.signal.ecno}")
-                it.rssi = removeNullFromString("${this.signal.rssi}")
-                it.lattitude = locationPair.first
-                it.longitude = locationPair.second
-                it.dlspeed = speedPair.downloadSpeedKbps
-                it.ulspeed = speedPair.uploadSpeedKbps
-                it.deviceModel = "${Build.MODEL}"
-                it.data = if (hasMobileInternet)"Mobile" else "Wifi"
-                it.isDataCaptureOffline = false
-                it.isUserDeviceOnCall = isUserOnCall(context = context)
-                it.deviceManufacture ="${Build.MANUFACTURER}"
-                it.deviceOsVersion ="${Build.VERSION.SDK_INT}"
-                it.usedSimSlot= usedSimSlot
-                it.rtt = rtt
-                it.latency =latency
-                it.totalUploadVolume=speedPair.totalUploadMB
-                it.totalDownloadVolume=speedPair.totalDownloadMB
-            }
-        }
-
-        is CellLte -> {
-            val speedPair = downloader.getBandWidthSpeed(networkType = "4G",hasMobileInternet= hasMobileInternet, currentMnc = mnc, activeNetworkMnc = activeNetworkMnc, retryCountDownload = 2, retryCountUpload = 2)
-            return NetworkDataEntity().also {
-                it.time = CommonUtils.getCurrentDateTime()
-                it.date = CommonUtils.getCurrentDate()
-                it.mcc = "${removeNullFromString("${mcc}")}"
-                it.mnc = "${removeNullFromString("${mnc}")}"
-                it.tac = removeNullFromString("${this.tac}")
-                it.type = "4G"
-                it.cid = removeNullFromString("${this.cid}")
-                it.enb = removeNullFromString("${this.enb}")
-                it.pci = removeNullFromString("${this.pci}")
-                it.ta = removeNullFromString("${this.signal.timingAdvance}")
-                it.bw = removeNullFromString("${this.bandwidth}")
-                it.arfcn = removeNullFromString("${this.band?.downlinkEarfcn}")
-                it.band = "${removeNullFromString(this.band?.name ?: "")}"
-                it.rsrp = removeNullFromString("${this.signal.rsrp}")
-                it.rsrq = removeNullFromString("${this.signal.rsrq}")
-                it.snr = removeNullFromString("${this.signal.snr}")
-                it.cqi = removeNullFromString("${this.signal.cqi}")
-                it.rssi = removeNullFromString("${this.signal.rssi}")
-                it.lattitude = locationPair.first
-                it.longitude = locationPair.second
-                it.dlspeed = speedPair.downloadSpeedKbps
-                it.ulspeed = speedPair.uploadSpeedKbps
-                it.deviceModel = "${Build.MODEL}"
-                it.data = if (hasMobileInternet)"Mobile" else "Wifi"
-                it.isDataCaptureOffline = false
-                it.isUserDeviceOnCall = isUserOnCall(context = context)
-                it.deviceManufacture ="${Build.MANUFACTURER}"
-                it.deviceOsVersion ="${Build.VERSION.SDK_INT}"
-                it.usedSimSlot= usedSimSlot
-                it.rtt = rtt
-                it.latency =latency
-                it.totalUploadVolume=speedPair.totalUploadMB
-                it.totalDownloadVolume=speedPair.totalDownloadMB
-            }
-        }
-
-        is CellNr -> {
-            val speedPair = downloader.getBandWidthSpeed(networkType = "4G",hasMobileInternet= hasMobileInternet, currentMnc = mnc, activeNetworkMnc = activeNetworkMnc, retryCountDownload = 2, retryCountUpload = 2)
-            return NetworkDataEntity().also {
-                it.time = CommonUtils.getCurrentDateTime()
-                it.date = CommonUtils.getCurrentDate()
-                it.mcc = "${removeNullFromString("${mcc}")}"
-                it.mnc = "${removeNullFromString("${mnc}")}"
-                it.tac = removeNullFromString("${this.tac}")
-                it.type = "5G"
-                it.pci = removeNullFromString("${this.pci}")
-                it.band = "${removeNullFromString(this.band?.name ?: "")}"
-                it.rsrp = removeNullFromString("${this.signal.ssRsrp}")
-                it.rsrq = removeNullFromString("${this.signal.ssRsrq}")
-                it.snr = removeNullFromString("${this.signal.ssSinr}")
-                it.lattitude = locationPair.first
-                it.longitude = locationPair.second
-                it.dlspeed = speedPair.downloadSpeedKbps
-                it.ulspeed = speedPair.uploadSpeedKbps
-                it.deviceModel = "${Build.MODEL}"
-                it.data = if (hasMobileInternet)"Mobile" else "Wifi"
-                it.isDataCaptureOffline = false
-                it.isUserDeviceOnCall = isUserOnCall(context = context)
-                it.deviceManufacture ="${Build.MANUFACTURER}"
-                it.deviceOsVersion ="${Build.VERSION.SDK_INT}"
-                it.usedSimSlot= usedSimSlot
-                it.rtt = rtt
-                it.latency =latency
-                it.totalUploadVolume=speedPair.totalUploadMB
-                it.totalDownloadVolume=speedPair.totalDownloadMB
-            }
-        }
-
-        is CellTdscdma -> {
-            val speedPair = downloader.getBandWidthSpeed(networkType = "3G",hasMobileInternet= hasMobileInternet, currentMnc = mnc, activeNetworkMnc = activeNetworkMnc)
-            return NetworkDataEntity().also {
-                it.time = CommonUtils.getCurrentDateTime()
-                it.date = CommonUtils.getCurrentDate()
-                it.mcc = "${removeNullFromString("${mcc}")}"
-                it.mnc = "${removeNullFromString("${mnc}")}"
-                it.lac = removeNullFromString("${this.cid}")
-                it.type = "3G"
-                it.cid = removeNullFromString("${this.cid}")
-                it.band = "${removeNullFromString(this.band?.name ?: "")}"
-                it.rssi = removeNullFromString("${this.signal.rssi}")
-                it.lattitude = locationPair.first
-                it.longitude = locationPair.second
-                it.dlspeed = speedPair.downloadSpeedKbps
-                it.ulspeed = speedPair.uploadSpeedKbps
-                it.deviceModel = "${Build.MODEL}"
-                it.data = if (hasMobileInternet)"Mobile" else "Wifi"
-                it.isDataCaptureOffline = false
-                it.isUserDeviceOnCall = isUserOnCall(context = context)
-                it.deviceManufacture ="${Build.MANUFACTURER}"
-                it.deviceOsVersion ="${Build.VERSION.SDK_INT}"
-                it.usedSimSlot= usedSimSlot
-                it.rtt = rtt
-                it.latency =latency
-                it.totalUploadVolume=speedPair.totalUploadMB
-                it.totalDownloadVolume=speedPair.totalDownloadMB
-            }
-        }
-
-        else -> NetworkDataEntity()
+    val networkType = when (this) {
+        is CellCdma, is CellGsm -> "2G"
+        is CellWcdma, is CellTdscdma -> "3G"
+        is CellLte, is CellNr -> "4G"
+        else -> "Unknown"
     }
+    
+    val retryCount = if (networkType == "4G") 2 else 1
+
+    val speedPair = downloader.getBandWidthSpeed(
+        networkType = networkType,
+        hasMobileInternet = hasMobileInternet,
+        currentMnc = mnc,
+        activeNetworkMnc = activeNetworkMnc,
+        retryCountDownload = retryCount,
+        retryCountUpload = retryCount
+    )
+
+    val entity = NetworkDataEntity().apply {
+        this.time = CommonUtils.getCurrentDateTime()
+        this.date = CommonUtils.getCurrentDate()
+        this.mcc = mcc?.let { toIntSafe(it).toString() } ?: "0"
+        this.mnc = mnc?.let { toIntSafe(it).toString() } ?: "0"
+        this.lattitude = locationPair.first
+        this.longitude = locationPair.second
+        this.dlspeed = speedPair.downloadSpeedKbps
+        this.ulspeed = speedPair.uploadSpeedKbps
+        this.deviceModel = Build.MODEL
+        this.data = if (hasMobileInternet) "Mobile" else "Wifi"
+        this.isDataCaptureOffline = false
+        this.isUserDeviceOnCall = isUserOnCall(context = context)
+        this.deviceManufacture = Build.MANUFACTURER
+        this.deviceOsVersion = Build.VERSION.SDK_INT.toString()
+        this.usedSimSlot = usedSimSlot
+        this.rtt = rtt
+        this.latency = latency
+        this.totalUploadVolume = speedPair.totalUploadMB
+        this.totalDownloadVolume = speedPair.totalDownloadMB
+        this.band = this@prepareDate.band?.name ?: ""
+    }
+
+    when (this) {
+        is CellCdma -> {
+            entity.type = "CDMA"
+            entity.snr = toIntSafe(this.signal.evdoSnr)
+            entity.rssi = toIntSafe(this.signal.cdmaRssi)
+        }
+        is CellGsm -> {
+            entity.type = "2G"
+            entity.lac = toIntSafe(this.lac)
+            entity.cid = toIntSafe(this.cid)
+            entity.arfcn = toIntSafe(this.band?.arfcn)
+            entity.ta = toIntSafe(this.signal.timingAdvance)
+            entity.rxlev = toIntSafe(this.signal.rssi)
+            entity.bitRateError = toIntSafe(this.signal.bitErrorRate)
+            entity.rxQual = calculateRXQUAL(entity.bitRateError ?: 0)
+            entity.rssi = toIntSafe(this.signal.rssi)
+        }
+        is CellWcdma -> {
+            entity.type = "3G"
+            entity.lac = toIntSafe(this.lac)
+            entity.cid = toIntSafe(this.cid)
+            entity.psc = toIntSafe(this.psc)
+            entity.arfcn = toIntSafe(this.band?.downlinkUarfcn)
+            entity.rscp = toIntSafe(this.signal.rscp)
+            entity.ecNo = toIntSafe(this.signal.ecno)
+            entity.rssi = toIntSafe(this.signal.rssi)
+        }
+        is CellLte -> {
+            entity.type = "4G"
+            entity.tac = toIntSafe(this.tac)
+            entity.cid = toIntSafe(this.cid)
+            entity.enb = toIntSafe(this.enb)
+            entity.pci = toIntSafe(this.pci)
+            entity.ta = toIntSafe(this.signal.timingAdvance)
+            entity.bw = toIntSafe(this.bandwidth)
+            entity.arfcn = toIntSafe(this.band?.downlinkEarfcn)
+            entity.rsrp = toIntSafe(this.signal.rsrp)
+            entity.rsrq = toIntSafe(this.signal.rsrq)
+            entity.snr = toIntSafe(this.signal.snr)
+            entity.cqi = toIntSafe(this.signal.cqi)
+            entity.rssi = toIntSafe(this.signal.rssi)
+        }
+        is CellNr -> {
+            entity.type = "5G"
+            entity.tac = toIntSafe(this.tac)
+            entity.pci = toIntSafe(this.pci)
+            entity.rsrp = toIntSafe(this.signal.ssRsrp)
+            entity.rsrq = toIntSafe(this.signal.ssRsrq)
+            entity.snr = toIntSafe(this.signal.ssSinr)
+        }
+        is CellTdscdma -> {
+            entity.type = "3G"
+            entity.lac = toIntSafe(this.lac) // Actually maps to cid for CellTdscdma in the original code, but lac is safer if available. We keep the original logic for lac which mapped cid.
+            entity.cid = toIntSafe(this.cid)
+            entity.rssi = toIntSafe(this.signal.rssi)
+        }
+    }
+    return entity
 }
 
 suspend fun ICell.prepareFTPData(
@@ -248,9 +143,7 @@ suspend fun ICell.prepareFTPData(
 ): FTPNetworkDataEntity {
     val mcc = this.network?.mcc
     val mnc = this.network?.mnc
-    val deviceManufacture = Build.MANUFACTURER
-    val deviceModel = Build.MODEL
-    val deviceOsVersion = Build.VERSION.SDK_INT.toString()
+    
     val type = when (this) {
         is CellGsm -> "2G"
         is CellWcdma, is CellTdscdma -> "3G"
@@ -268,43 +161,43 @@ suspend fun ICell.prepareFTPData(
         retryCountUpload = 2
     )
 
-    return FTPNetworkDataEntity().also {
-        it.date = CommonUtils.getCurrentDate()
-        it.mcc = removeNullFromString("$mcc").toString()
-        it.mnc = removeNullFromString("$mnc").toString()
-        it.technologyType = type
-        it.band = removeNullFromString(this.band?.name ?: "").toString()
-        it.latitude = locationPair.first
-        it.longitude = locationPair.second
-        it.dlSpeed = speedPair.downloadSpeedKbps
-        it.ulSpeed = speedPair.uploadSpeedKbps
-        it.deviceManufacture = deviceManufacture
-        it.deviceModel = deviceModel
-        it.deviceOsVersion = deviceOsVersion
-        it.internetConnectivityType = if (hasMobileInternet) "Mobile" else "Wifi"
-        it.totalUploadVolume = speedPair.totalUploadMB
-        it.totalDownloadVolume = speedPair.totalDownloadMB
+    return FTPNetworkDataEntity().apply {
+        this.date = CommonUtils.getCurrentDate()
+        this.mcc = mcc?.let { toIntSafe(it).toString() } ?: "0"
+        this.mnc = mnc?.let { toIntSafe(it).toString() } ?: "0"
+        this.technologyType = type
+        this.band = this@prepareFTPData.band?.name ?: ""
+        this.latitude = locationPair.first
+        this.longitude = locationPair.second
+        this.dlSpeed = speedPair.downloadSpeedKbps
+        this.ulSpeed = speedPair.uploadSpeedKbps
+        this.deviceManufacture = Build.MANUFACTURER
+        this.deviceModel = Build.MODEL
+        this.deviceOsVersion = Build.VERSION.SDK_INT.toString()
+        this.internetConnectivityType = if (hasMobileInternet) "Mobile" else "Wifi"
+        this.totalUploadVolume = speedPair.totalUploadMB
+        this.totalDownloadVolume = speedPair.totalDownloadMB
 
-        when (this) {
+        when (this@prepareFTPData) {
             is CellGsm -> {
-                it.cid = removeNullFromString("${this.cid}")
+                this.cid = toIntSafe(this@prepareFTPData.cid) ?: 0
             }
             is CellWcdma -> {
-                it.cid = removeNullFromString("${this.cid}")
+                this.cid = toIntSafe(this@prepareFTPData.cid) ?: 0
             }
             is CellLte -> {
-                it.cid = removeNullFromString("${this.cid}")
-                it.enb = removeNullFromString("${this.enb}")
-                it.tac = removeNullFromString("${this.tac}")
-                it.rsrp = removeNullFromString("${this.signal.rsrp}")
-                it.rsrq = removeNullFromString("${this.signal.rsrq}")
-                it.snr = removeNullFromString("${this.signal.snr}")
+                this.cid = toIntSafe(this@prepareFTPData.cid) ?: 0
+                this.enb = toIntSafe(this@prepareFTPData.enb) ?: 0
+                this.tac = toIntSafe(this@prepareFTPData.tac) ?: 0
+                this.rsrp = toIntSafe(this@prepareFTPData.signal.rsrp) ?: 0
+                this.rsrq = toIntSafe(this@prepareFTPData.signal.rsrq) ?: 0
+                this.snr = toIntSafe(this@prepareFTPData.signal.snr) ?: 0
             }
             is CellNr -> {
-                it.tac = removeNullFromString("${this.tac}")
-                it.rsrp = removeNullFromString("${this.signal.ssRsrp}")
-                it.rsrq = removeNullFromString("${this.signal.ssRsrq}")
-                it.snr = removeNullFromString("${this.signal.ssSinr}")
+                this.tac = toIntSafe(this@prepareFTPData.tac) ?: 0
+                this.rsrp = toIntSafe(this@prepareFTPData.signal.ssRsrp) ?: 0
+                this.rsrq = toIntSafe(this@prepareFTPData.signal.ssRsrq) ?: 0
+                this.snr = toIntSafe(this@prepareFTPData.signal.ssSinr) ?: 0
             }
         }
     }
@@ -316,15 +209,12 @@ suspend fun ResponseBody?.getTotalBytes(): Int {
     val byteArrayOutputStream = ByteArrayOutputStream()
     val buffer = ByteArray(1024)
     var length: Int
-    var totalBytesRead = 0
     try {
         while (inputStream?.read(buffer).also { length = it ?: -1 } != -1) {
             coroutineContext.ensureActive() // Check for cancellation
             byteArrayOutputStream.write(buffer, 0, length)
-            totalBytesRead += length
         }
-        val byteArray = byteArrayOutputStream.toByteArray()
-        size = byteArray.size
+        size = byteArrayOutputStream.size()
     } catch (e: Exception) {
         if (e is kotlinx.coroutines.CancellationException) throw e
     } finally {
@@ -334,17 +224,20 @@ suspend fun ResponseBody?.getTotalBytes(): Int {
     return size
 }
 
-private fun removeNullFromString(str: String): Int {
+private fun toIntSafe(value: Any?): Int? {
+    if (value == null) return null
+    val str = value.toString()
+    if (str.equals("null", ignoreCase = true) || str.isBlank()) return null
     return try {
-        str.replace("null", "").toDouble().toInt()
+        str.toDouble().toInt()
     } catch (e: Exception) {
-        0
+        null
     }
 }
 
- private fun calculateRXQUAL(ber: Int): Int {
-     return if (ber in 0..7) ber else 0
- }
+private fun calculateRXQUAL(ber: Int): Int {
+    return if (ber in 0..7) ber else 0
+}
 
 fun isUserOnCall(context: Context): Boolean {
     return try {
@@ -358,6 +251,7 @@ fun isUserOnCall(context: Context): Boolean {
         false
     }
 }
+
 
 
 

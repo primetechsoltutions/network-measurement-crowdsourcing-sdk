@@ -63,9 +63,7 @@ dependencies {
     androidTestImplementation(libs.androidx.espresso.core)
 
     implementation(project(mapOf("path" to ":network-sdk")))
-//    implementation("com.github.primetechsoltutions:network-measurement-unified-sdk:Test-1.0.5")
-//    implementation("com.github.primetechsoltutions:network-measurement-unified-sdk:Live-1.0.5")
-//    implementation("com.github.primetechsoltutions:network-measurement-unified-sdk:Test-1.0.7")
+//    implementation("com.github.primetechsoltutions:network-measurement-unified-sdk:Test-1.0.9-Internal-v1")
 
 
     implementation(libs.play.services.location)

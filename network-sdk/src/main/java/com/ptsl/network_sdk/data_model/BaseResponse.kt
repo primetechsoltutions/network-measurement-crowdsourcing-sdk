@@ -6,7 +6,7 @@ import com.google.gson.annotations.SerializedName
 
 @Keep
 data class BaseResponse<T>(
-    @SerializedName("Data" ) var data : T,
+    @SerializedName("Data" ) var data : T?,
     @SerializedName("Status" ) var statusCode : Int,
     @SerializedName("Message" ) var message : String,
 )

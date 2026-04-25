@@ -122,7 +122,7 @@ internal class FTPAssessmentExecutor(
                 if (isPass) "Your network assessment was successful." else "Your network assessment failed."
 
             val dataResult = AssessmentResult(
-                assessmentId = backendResponse.data.assessmentId,
+                assessmentId = backendResponse.data?.assessmentId?:0,
                 networkData = NetworkMetrics(
                     RSRP = ftpData.rsrp,
                     SNR = ftpData.snr,
@@ -364,8 +364,8 @@ internal class FTPAssessmentExecutor(
                 data = FTPCellInfoGetRequest(eNB = ftpData.enb, cID = ftpData.cid)
             )
             val response = apiService.postFTPCellInfo(request)
-            if (response.statusCode == 200 && response.data.isNotEmpty()) {
-                val cellInfo = response.data.first()
+            if (response.statusCode == 200 && !response.data.isNullOrEmpty()) {
+                val cellInfo = response.data!!.first()
                 ftpData.apply {
                     eNodeBName = cellInfo.eNodeBName
                     cellName = cellInfo.cellName
@@ -458,11 +458,11 @@ internal class FTPAssessmentExecutor(
             if (shouldFetch) {
                 val response = apiService.getFTPThresholds(getAuth())
                 if (response.statusCode == 200 && response.data != null) {
-                    val newThresholds = response.data.apply {
+                    val newThresholds = response.data?.apply {
                         lastUpdated = CommonUtils.getCurrentDate()
                         id = 1
                     }
-                    databaseDao.insertFTPThresholds(newThresholds)
+                    databaseDao.insertFTPThresholds(newThresholds?: FTPThresholdEntity())
                     Log.i(TAG, "Thresholds sync successful")
                 }
             }
@@ -581,7 +581,7 @@ internal class FTPAssessmentExecutor(
                     Manifest.permission.READ_PHONE_STATE
                 ) == PackageManager.PERMISSION_GRANTED
             ) {
-                telephonyManager?.dataNetworkType ?: false
+                telephonyManager?.dataNetworkType
             } else {
                 TelephonyManager.NETWORK_TYPE_UNKNOWN
             }
