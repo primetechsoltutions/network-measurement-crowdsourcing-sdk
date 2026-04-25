@@ -178,7 +178,7 @@ internal class FTPAssessmentExecutor(
                 message = "Network assessment failed. Please check your internet connection."
             )
         } catch (e: Exception) {
-            Log.e(TAG, "Unexpected execution error", e)
+            Log.e(TAG, "Unexpected execution error ${e.message}")
             try {
                 withTimeout(10000) {
                     logError(input, e, "FTP_CAPTURE_EXECUTION_ERROR")
