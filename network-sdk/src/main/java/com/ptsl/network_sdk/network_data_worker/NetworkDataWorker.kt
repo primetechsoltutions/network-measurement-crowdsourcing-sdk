@@ -55,7 +55,7 @@ class NetworkDataWorker(
 
         val authEntity = getAuth()
         val newDataList: MutableList<NetworkDataEntity> = mutableListOf()
-        if (apiService == null || databaseDao == null || databaseDao == null) {
+        if (!SdkContainer.isInitialized()) {
             return Result.failure()
         }
         return try {

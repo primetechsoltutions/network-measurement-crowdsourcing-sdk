@@ -81,7 +81,7 @@ class NetworkDataUploader {
         uploadType: UploadType,
         callback: (Boolean, UploadStatus) -> Unit
     ) {
-        if (!this::checkPermissionHandler.isInitialized) {
+        if (!this::checkPermissionHandler.isInitialized || !SdkContainer.isInitialized()) {
             Log.e(TAG, "SDK not initialized. Call init() first.")
             callback(
                 false, UploadStatus(
@@ -95,18 +95,7 @@ class NetworkDataUploader {
             return
         }
 
-        if (SdkContainer.coroutineScope == null || SdkContainer.dao == null || SdkContainer.apiService == null || SdkContainer.downloadUploadHelper == null || SdkContainer.database == null) {
-            return dispatchCallback(
-                callback, false, createSuccessStatus(
-                    NetworkDataResponse(
-                        status = "Failed", statusCode = 500, message = "SDK not initialized"
-                    )
-                )
-            )
-        }
-
         try {
-
             val ignoreGpsLimit = uploadType == UploadType.FTPNetworkDataCapture
             requestPermission(ignoreGpsLimit) { isGranted ->
                 if (!isGranted && uploadType == UploadType.FTPNetworkDataCapture) {

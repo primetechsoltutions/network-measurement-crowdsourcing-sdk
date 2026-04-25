@@ -14,15 +14,28 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 
 internal object SdkContainer {
-    @Volatile
     var database: NetworkDatabase? = null
     var dao: NetworkDao? = null
     var coroutineScope: CoroutineScope ? = null
     var apiService: ApiService ? = null
     var downloadUploadHelper: DownloadUploadHelper ? = null
+    @Volatile
+    private var initialized = false
+
+    fun isInitialized(): Boolean = initialized &&
+            database != null &&
+            dao != null &&
+            coroutineScope != null &&
+            apiService != null &&
+            downloadUploadHelper != null
 
     @Synchronized
     fun init(context: Context) {
+        if (isInitialized()) {
+            Log.i("SdkContainer", "Already initialized, skipping re-initialization")
+            return
+        }
+
         try {
             val appContext = context.applicationContext
             database = Room.databaseBuilder(
@@ -31,6 +44,7 @@ internal object SdkContainer {
                 "network_db"
             ).fallbackToDestructiveMigration().build()
             dao = database?.networkDao()
+
             val exceptionHandler = CoroutineExceptionHandler { _, exception ->
                 Log.e("SdkContainer", "Coroutine error: ${exception.message}", exception)
             }
@@ -40,8 +54,11 @@ internal object SdkContainer {
             )
             apiService = NetworkModule.apiService
             downloadUploadHelper = apiService?.let { DownloadUploadHelper(it) }
-            Log.e("Check Init", "SdkContainer initialized successfully")
+
+            initialized = true
+            Log.i("SdkContainer", "SdkContainer initialized successfully")
         } catch (e: Exception) {
+            initialized = false
             Log.e("SdkContainer", "Init failed: ${e.message}", e)
         }
     }
