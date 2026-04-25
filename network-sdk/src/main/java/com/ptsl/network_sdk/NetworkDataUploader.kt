@@ -312,40 +312,28 @@ class NetworkDataUploader {
         userLongitude: Double,
     ): java.util.UUID {
 
-        val inputData = workDataOf(
-            "msisdn" to msisdn,
-            "integratedAppVersion" to integratedAppVersion,
-            "sdkInitiateTimeStamp" to sdkInitiateTimeStamp,
-            "integratedAppEventName" to integratedAppEventName,
-            "sdkVersion" to authEntity.sdkVersion,
-            "userLatitude" to userLatitude,
-            "userLongitude" to userLongitude
-        )
+ try {
+     val inputData = workDataOf(
+         "msisdn" to msisdn,
+         "integratedAppVersion" to integratedAppVersion,
+         "sdkInitiateTimeStamp" to sdkInitiateTimeStamp,
+         "integratedAppEventName" to integratedAppEventName,
+         "sdkVersion" to authEntity.sdkVersion,
+         "userLatitude" to userLatitude,
+         "userLongitude" to userLongitude
+     )
 
-        val workRequest = OneTimeWorkRequestBuilder<NetworkDataWorker>()
-            .setInputData(inputData).build()
+     val workRequest = OneTimeWorkRequestBuilder<NetworkDataWorker>()
+         .setInputData(inputData).build()
 
-        getWorkManager(context).enqueue(workRequest)
-        Log.d(TAG, "Enqueued ${UploadType.NetworkDataCapture.name} with ID: ${workRequest.id}")
-        return workRequest.id
+     WorkManager.getInstance(context).enqueue(workRequest)
+     Log.d(TAG, "Enqueued ${UploadType.NetworkDataCapture.name} with ID: ${workRequest.id}")
+     return workRequest.id
+ }catch (e: Exception) {
+     Log.e(TAG, "Failed to enqueue work: ${e.message}", e)
+return java.util.UUID(0,  0) }
+ }
     }
-    /**
-     * Safely obtains a [WorkManager] instance.
-     *
-     * Some host apps disable the default `WorkManagerInitializer` in their manifest
-     * (via `tools:node="remove"`) and use custom initialization. If `getInstance()` throws,
-     * we fall back to initializing WorkManager with a default [Configuration].
-     */
-    private fun getWorkManager(context: Context): WorkManager {
-        return try {
-            WorkManager.getInstance(context)
-        } catch (e: IllegalStateException) {
-            Log.w(TAG, "WorkManager not initialized by host app, initializing with default config", e)
-            WorkManager.initialize(context, Configuration.Builder().build())
-            WorkManager.getInstance(context)
-        }
-    }
-}
 
 /** Defines the available measurement types. */
 enum class UploadType {
