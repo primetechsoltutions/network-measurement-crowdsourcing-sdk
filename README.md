@@ -1,93 +1,215 @@
-# Network_Measurement_Event_Base_SDK
+# Network Measurement SDK — Integration & Best Practices Guide
 
+This document provides a comprehensive guide for integrating the Network Measurement SDK into host applications (such as MyBL). It covers setup, initialization, manifest configurations, and common troubleshooting steps to ensure a crash-free experience.
 
+---
 
-## Getting started
+## 1. Installation & Dependency
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+Ensure the SDK module is added to your project's `settings.gradle` and your app's `build.gradle` file:
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
-
-## Add your files
-
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
-
-```
-cd existing_repo
-git remote add origin https://gitlab.com/najibcse/network_measurement_event_base_sdk.git
-git branch -M main
-git push -uf origin main
+```gradle
+// app/build.gradle
+implementation project(':network-sdk')
 ```
 
-## Integrate with your tools
+---
 
-- [ ] [Set up project integrations](https://gitlab.com/najibcse/network_measurement_event_base_sdk/-/settings/integrations)
+## 2. Manifest Configuration & WorkManager
 
-## Collaborate with your team
+The SDK uses Android's modern `androidx.startup.InitializationProvider` to automatically configure `WorkManager`.
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+### ⚠️ Critical Warning: Custom WorkManager Init
+If your host application **customizes** WorkManager initialization by removing the default initializer like this:
 
-## Test and Deploy
+```xml
+<!-- In your host app's AndroidManifest.xml -->
+<provider
+    android:name="androidx.startup.InitializationProvider"
+    android:authorities="${applicationId}.androidx-startup"
+    tools:node="remove" />  <!-- REMOVES AUTO INIT -->
+```
 
-Use the built-in continuous integration in GitLab.
+**What happens?** The SDK is designed to be safe! If the host app removes auto-initialization, the SDK will automatically fallback to initializing `WorkManager` with a default configuration to prevent `IllegalStateException` crashes.
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+**Best Practice:** If you use `tools:node="remove"`, ensure your host app initializes `WorkManager` in your `Application` class by implementing `Configuration.Provider`:
 
-***
+```kotlin
+class MyHostApplication : Application(), Configuration.Provider {
+    override fun getWorkManagerConfiguration(): Configuration {
+        return Configuration.Builder()
+            .setMinimumLoggingLevel(android.util.Log.INFO)
+            .build()
+    }
+}
+```
+*(If you do this, the SDK will seamlessly use your custom configuration.)*
 
-# Editing this README
+---
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+## 3. SDK Initialization
 
-## Suggestions for a good README
+The SDK **must** be initialized before triggering any network captures. Because the SDK manages permissions safely, it must be bound to the lifecycle of an Activity or Fragment.
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+### Initialization Rules:
+1. **Where to call:** You MUST call `NetworkDataUploader().init(...)` inside `onCreate()` of your Activity or Fragment.
+2. **Why?** The SDK uses `ActivityResultContracts` for permissions, which the Android framework requires to be registered *before* the component reaches the `STARTED` state.
 
-## Name
-Choose a self-explaining name for your project.
+### ✅ Correct Usage (Fragment Example)
+```kotlin
+class HomeFragment : Fragment() {
+    
+    // 1. Declare the uploader globally
+    private val networkDataUploader = NetworkDataUploader()
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        
+        // 2. Initialize in onCreate()
+        networkDataUploader.init(
+            fragment = this, 
+            applicationName = "MyBL_App"
+        )
+    }
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+        
+        button.setOnClickListener {
+            // 3. Trigger capture later
+            startCapture()
+        }
+    }
+}
+```
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+### ❌ Incorrect Usage (Will cause crashes)
+```kotlin
+// BAD: Initializing inside a click listener will crash!
+button.setOnClickListener {
+    val uploader = NetworkDataUploader()
+    uploader.init(this, "App") // CRASH: IllegalStateException (registered after STARTED)
+    uploader.startUploading(...)
+}
+```
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+---
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+## 4. Triggering Network Captures
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+The SDK supports two types of captures:
+1. `UploadType.NetworkDataCapture` (Standard background capture, runs via WorkManager)
+2. `UploadType.FTPNetworkDataCapture` (Deep diagnostic with FTP speed test, runs immediately)
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+```kotlin
+private fun startCapture() {
+    networkDataUploader.startUploading(
+        msisdn = "01912345678",
+        integratedAppVersion = "1.0.0",
+        sdkInitiateTimeStamp = System.currentTimeMillis().toString(),
+        integratedAppEventName = "Home_Screen_Load",
+        uploadType = UploadType.FTPNetworkDataCapture
+    ) { success: Boolean, status: UploadStatus ->
+        
+        if (success) {
+            Log.d("SDK", "Capture successful: ${status.response}")
+        } else {
+            Log.e("SDK", "Capture failed: ${status.response}")
+        }
+    }
+}
+```
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+### 📋 Callback Response Formats
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+The `status.response` string is a serialized JSON object of the `NetworkDataResponse` class. The format differs depending on the `UploadType` you requested and whether it succeeded or failed.
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+#### 1. Standard Capture (`UploadType.NetworkDataCapture`)
+Standard captures run asynchronously in the background via WorkManager. The callback only indicates whether the task was successfully **enqueued**, it does not wait for the actual network test to finish.
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+**✅ Success Response:**
+```json
+{
+  "message": "SDK Task enqueued"
+}
+```
 
-## License
-For open source projects, say how it is licensed.
+**❌ Error Response (e.g., SDK not initialized):**
+```json
+{
+  "status": "Failed",
+  "statusCode": 500,
+  "message": "SDK not initialized"
+}
+```
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+#### 2. Deep Diagnostic Capture (`UploadType.FTPNetworkDataCapture`)
+FTP captures run immediately and the callback waits up to 60 seconds for the entire diagnostic test to complete.
+
+**✅ Success Response:**
+```json
+{
+  "status": "Success",
+  "testResult": "Green", 
+  "statusCode": 200,
+  "message": "Assessment completed successfully",
+  "data": {
+    "assessmentId": 123456789,
+    "networkData": {
+      "RSRP": -85,
+      "SNR": 15,
+      "RSRQ": -12
+    },
+    "cellInfo": {
+      "cellName": "Dhaka_North_Cell_A",
+      "eNodeBName": "eNodeB_Banani",
+      "nbhDlThroughputMbps": 45.5,
+      "nbhTrafficGB": 12.3
+    },
+    "speedPair": {
+      "ulSpeedKbps": 15000.0,
+      "dlSpeedKbps": 45000.0
+    },
+    "userInfo": {
+      "deviceManufacture": "Samsung",
+      "deviceModel": "SM-G998B",
+      "deviceOsVersion": "33",
+      "latitude": 23.8103,
+      "longitude": 90.4125,
+      "msisdn": "01912345678"
+    }
+  }
+}
+```
+
+**❌ Error Response (e.g., test timeout or no cell data found):**
+```json
+{
+  "status": "Failed",
+  "statusCode": 500,
+  "message": "Assessment Failed"
+}
+```
+
+---
+
+## 5. Troubleshooting & Crash Prevention
+
+### "SDK not initialized" Error in Callback
+If your callback immediately receives `status = "Failed", message = "SDK not initialized"`, it means:
+- You called `startUploading` but forgot to call `init()` first.
+- The internal `SdkContainer` failed to create the local database (often due to out-of-memory or corrupt storage).
+
+### "Fragment not attached" Warnings
+The SDK internally uses `WeakReference` to hold the Fragment/Activity. If the user navigates away from the screen while a 60-second FTP test is running, the SDK will safely detect the detached state and cancel UI updates to prevent `IllegalStateException`. You do not need to manually cancel the SDK on navigation.
+
+### Permission Dialog Not Showing
+If the user previously clicked "Don't ask again", the SDK will not be able to show the system dialog. The SDK's `CheckPermissionHandler` handles this gracefully and will proceed (without location data) or fail the FTP test cleanly based on the requested `UploadType`.
+
+---
+
+## 📞 Support & Integration Sync
+
+If you encounter any architectural conflicts, unexpected crashes, or have questions about how the SDK handles WorkManager queues and threading:
+
+> **Note:** Please feel free to arrange a sync meeting with the SDK Development Team. We are happy to walk through the integration via screen share or review your host app's implementation PR to ensure perfect stability.
