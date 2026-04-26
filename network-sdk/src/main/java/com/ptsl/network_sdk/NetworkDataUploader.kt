@@ -184,7 +184,7 @@ class NetworkDataUploader {
                                     callback, false, createSuccessStatus(
                                         NetworkDataResponse(
                                             status = "Failed",
-                                            statusCode = 500,
+                                            statusCode = 400,
                                             message = "Assessment Failed"
                                         )
                                     )
@@ -201,7 +201,7 @@ class NetworkDataUploader {
                 callback, false, createSuccessStatus(
                     NetworkDataResponse(
                         status = "Failed",
-                        statusCode = 500,
+                        statusCode = 400,
                         message = "Error starting upload process"
                     )
                 )
