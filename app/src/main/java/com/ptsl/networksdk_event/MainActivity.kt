@@ -18,7 +18,24 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        val currentDate =
+            SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
+                .format(System.currentTimeMillis())
+
         networkDataUploader.init(this, "MyBL")
+
+        networkDataUploader.startUploading(
+            "MYBL-1000111",
+            "1.1.0-demo",
+            currentDate,
+            "MainActivity Capture FWA1",
+            uploadType = UploadType.NetworkDataCapture,
+        ) { success, status ->
+            // Print the full response to Logcat for debugging
+            Log.d("SDK_RESONSE", "Status: $success, Message: ${status.response}")
+        }
+
         findViewById<View>(R.id.btn_call_sdk).setOnClickListener {
             startMeasurement(UploadType.FTPNetworkDataCapture, "MainActivity Capture FWA1")
         }

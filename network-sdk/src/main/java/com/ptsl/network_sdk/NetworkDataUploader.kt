@@ -196,7 +196,7 @@ class NetworkDataUploader {
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error starting upload process", e)
+            Log.e(TAG, "Error starting upload process ${e.message}")
             dispatchCallback(
                 callback, false, createSuccessStatus(
                     NetworkDataResponse(
@@ -310,7 +310,7 @@ class NetworkDataUploader {
             Log.d(TAG, "Enqueued ${UploadType.NetworkDataCapture.name} with ID: ${workRequest.id}")
             return workRequest.id
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to enqueue work: ${e.message}", e)
+            Log.e(TAG, "Failed to enqueue work: ${e.message}")
             return java.util.UUID(0, 0)
         }
     }

@@ -319,7 +319,7 @@ class NetworkDataWorker(
                 databaseDao?.insertNetworkData(newDataList)
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error caching network data", e)
+            Log.e(TAG, "Error caching network data ${e.message}")
         }
     }
 

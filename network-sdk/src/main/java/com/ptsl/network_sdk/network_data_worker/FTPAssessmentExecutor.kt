@@ -155,7 +155,7 @@ internal class FTPAssessmentExecutor(
                 data = dataResult
             )
         } catch (e: TimeoutCancellationException) {
-            Log.e(TAG, "Global timeout during assessment", e)
+            Log.e(TAG, "Global timeout during assessment ${e.message}",)
             try {
                 withTimeout(10000) {
                     logError(input, e, "FTP_CAPTURE_TIMEOUT")
@@ -169,7 +169,7 @@ internal class FTPAssessmentExecutor(
                 message = "Network assessment timed out. Please check your internet connection."
             )
         } catch (e: IOException) {
-            Log.e(TAG, "Network error during assessment", e)
+            Log.e(TAG, "Network error during assessment ${e.message}")
             logError(input, e, "FTP_CAPTURE_NETWORK_ERROR")
             response(
                 status = "Failed",

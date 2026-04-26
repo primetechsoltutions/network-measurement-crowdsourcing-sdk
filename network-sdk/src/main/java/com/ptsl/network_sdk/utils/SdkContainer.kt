@@ -16,9 +16,10 @@ import kotlinx.coroutines.SupervisorJob
 internal object SdkContainer {
     var database: NetworkDatabase? = null
     var dao: NetworkDao? = null
-    var coroutineScope: CoroutineScope ? = null
-    var apiService: ApiService ? = null
-    var downloadUploadHelper: DownloadUploadHelper ? = null
+    var coroutineScope: CoroutineScope? = null
+    var apiService: ApiService? = null
+    var downloadUploadHelper: DownloadUploadHelper? = null
+
     @Volatile
     private var initialized = false
 
@@ -46,7 +47,7 @@ internal object SdkContainer {
             dao = database?.networkDao()
 
             val exceptionHandler = CoroutineExceptionHandler { _, exception ->
-                Log.e("SdkContainer", "Coroutine error: ${exception.message}", exception)
+                Log.e("SdkContainer", "Coroutine error: ${exception.message}")
             }
 
             coroutineScope = CoroutineScope(
@@ -59,7 +60,7 @@ internal object SdkContainer {
             Log.i("SdkContainer", "SdkContainer initialized successfully")
         } catch (e: Exception) {
             initialized = false
-            Log.e("SdkContainer", "Init failed: ${e.message}", e)
+            Log.e("SdkContainer", "Init failed: ${e.message}")
         }
     }
 }
