@@ -242,10 +242,10 @@ private fun calculateRXQUAL(ber: Int): Int {
 fun isUserOnCall(context: Context): Boolean {
     return try {
         val telephonyManager =
-            context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+            context.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager
 
-        telephonyManager.callState == TelephonyManager.CALL_STATE_RINGING ||
-                telephonyManager.callState == TelephonyManager.CALL_STATE_OFFHOOK
+        telephonyManager?.callState == TelephonyManager.CALL_STATE_RINGING ||
+                telephonyManager?.callState == TelephonyManager.CALL_STATE_OFFHOOK
 
     } catch (_: Exception) {
         false
