@@ -64,7 +64,7 @@ dependencies {
 
     implementation(project(mapOf("path" to ":network-sdk")))
 //    implementation("com.github.primetechsoltutions:network-measurement-unified-sdk:Test-1.0.9-Internal-v1")
-
+//    implementation("com.github.primetechsoltutions:network-measurement-unified-sdk:Test-1.0.9")
 
     implementation(libs.play.services.location)
     implementation("com.github.PhilJay:MPAndroidChart:v3.1.0")
