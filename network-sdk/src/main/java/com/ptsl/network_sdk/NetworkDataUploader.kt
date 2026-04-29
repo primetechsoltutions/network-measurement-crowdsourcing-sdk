@@ -5,7 +5,6 @@ import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.LifecycleOwner
-import androidx.work.Configuration
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.workDataOf
@@ -19,7 +18,6 @@ import com.ptsl.network_sdk.network_data_worker.NetworkDataWorker
 import com.ptsl.network_sdk.utils.CheckPermissionHandler
 import com.ptsl.network_sdk.utils.SdkContainer
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -254,8 +252,7 @@ class NetworkDataUploader {
         hostAppName = applicationName
     )
 
-    private fun createSuccessStatus(
-        networkDataResponse: NetworkDataResponse = NetworkDataResponse(
+    private fun createSuccessStatus(networkDataResponse: NetworkDataResponse = NetworkDataResponse(
             status = "Failed", statusCode = 400, message = ""
         )
     ): UploadStatus {

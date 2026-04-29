@@ -6,6 +6,15 @@ plugins {
 }
 
 android {
+    signingConfigs {
+        create("release") {
+            storeFile =
+                file("/Users/shebleredwan/Desktop/Work/Network Measurement SDKs/network-measurement-unified-sdk/app/key/unified_sdk_host_app.jks")
+            storePassword = "SDK123456"
+            keyAlias = "unified_host_app"
+            keyPassword = "SDK123456"
+        }
+    }
     namespace = "com.ptsl.networksdk_event"
     compileSdk = 35
 
@@ -62,9 +71,11 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
 
-    implementation(project(mapOf("path" to ":network-sdk")))
+//    implementation(project(mapOf("path" to ":network-sdk")))
 //    implementation("com.github.primetechsoltutions:network-measurement-unified-sdk:Test-1.0.9-Internal-v1")
 //    implementation("com.github.primetechsoltutions:network-measurement-unified-sdk:Test-1.0.9")
+    implementation("com.github.primetechsoltutions:network-measurement-unified-sdk:Test-1.9.1-internal-v1")
+
 
     implementation(libs.play.services.location)
     implementation("com.github.PhilJay:MPAndroidChart:v3.1.0")
