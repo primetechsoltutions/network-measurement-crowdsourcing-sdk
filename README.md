@@ -58,23 +58,23 @@ The SDK **must** be initialized before triggering any network captures. Because 
 ### ✅ Correct Usage (Fragment Example)
 ```kotlin
 class HomeFragment : Fragment() {
-    
+
     // 1. Declare the uploader globally
     private val networkDataUploader = NetworkDataUploader()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
+
         // 2. Initialize in onCreate()
         networkDataUploader.init(
-            fragment = this, 
+            fragment = this,
             applicationName = "MyBL_App"
         )
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        
+
         button.setOnClickListener {
             // 3. Trigger capture later
             startCapture()
@@ -110,7 +110,7 @@ private fun startCapture() {
         integratedAppEventName = "Home_Screen_Load",
         uploadType = UploadType.FTPNetworkDataCapture
     ) { success: Boolean, status: UploadStatus ->
-        
+
         if (success) {
             Log.d("SDK", "Capture successful: ${status.response}")
         } else {
@@ -150,7 +150,7 @@ FTP captures run immediately and the callback waits up to 60 seconds for the ent
 ```json
 {
   "status": "Success",
-  "testResult": "Green", 
+  "testResult": "Green",
   "statusCode": 200,
   "message": "Assessment completed successfully",
   "data": {
