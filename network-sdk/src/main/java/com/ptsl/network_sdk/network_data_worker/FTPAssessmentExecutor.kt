@@ -62,10 +62,7 @@ internal class FTPAssessmentExecutor(
                 val (msg, code, status) = preFlightError
                 logValidationFailure(input, msg, code)
                 return response(
-                    status = "Failed",
-                    testResult = "Failed",
-                    statusCode = status,
-                    message = msg
+                    status = "Failed", testResult = "Failed", statusCode = status, message = msg
                 )
             }
 
@@ -119,14 +116,12 @@ internal class FTPAssessmentExecutor(
             val testResult = if (isPass) "Pass" else "Failed"
             val statusCode = if (isPass) 200 else 400
             val message =
-                if (isPass) "Your network assessment was successful." else "Your network assessment failed."
+                if (isPass) "Your network assessment successful." else "Your network assessment failed."
 
             val dataResult = AssessmentResult(
-                assessmentId = backendResponse.data?.assessmentId?:0,
+                assessmentId = backendResponse.data?.assessmentId ?: 0,
                 networkData = NetworkMetrics(
-                    RSRP = ftpData.rsrp,
-                    SNR = ftpData.snr,
-                    RSRQ = ftpData.rsrq
+                    RSRP = ftpData.rsrp, SNR = ftpData.snr, RSRQ = ftpData.rsrq
                 ),
                 cellInfo = CellMetadata(
                     cellName = ftpData.cellName,
@@ -135,8 +130,7 @@ internal class FTPAssessmentExecutor(
                     nbhTrafficGB = ftpData.nbhTrafficGb
                 ),
                 speedPair = SpeedMetrics(
-                    ulSpeedKbps = ftpData.ulSpeed,
-                    dlSpeedKbps = ftpData.dlSpeed
+                    ulSpeedKbps = ftpData.ulSpeed, dlSpeedKbps = ftpData.dlSpeed
                 ),
                 userInfo = UserMetadata(
                     deviceManufacture = ftpData.deviceManufacture,
@@ -155,7 +149,7 @@ internal class FTPAssessmentExecutor(
                 data = dataResult
             )
         } catch (e: TimeoutCancellationException) {
-            Log.e(TAG, "Global timeout during assessment ${e.message}",)
+            Log.e(TAG, "Global timeout during assessment ${e.message}")
             try {
                 withTimeout(10000) {
                     logError(input, e, "FTP_CAPTURE_TIMEOUT")
@@ -166,7 +160,7 @@ internal class FTPAssessmentExecutor(
                 status = "Failed",
                 testResult = "Failed",
                 statusCode = 408,
-                message = "Network assessment timed out. Please check your internet connection."
+                message = "To continue network assessment, please connect using Banglalink mobile data."
             )
         } catch (e: IOException) {
             Log.e(TAG, "Network error during assessment ${e.message}")
@@ -175,7 +169,7 @@ internal class FTPAssessmentExecutor(
                 status = "Failed",
                 testResult = "Failed",
                 statusCode = 400,
-                message = "Network assessment failed. Please check your internet connection."
+                message = "To continue network assessment, please connect using Banglalink mobile data."
             )
         } catch (e: Exception) {
             Log.e(TAG, "Unexpected execution error ${e.message}")
@@ -189,7 +183,7 @@ internal class FTPAssessmentExecutor(
                 status = "Failed",
                 testResult = "Failed",
                 statusCode = 400,
-                message = "Network assessment failed due to internal error."
+                message = "Network assessment failed due to internal error. please try again"
             )
         }
     }
@@ -215,20 +209,20 @@ internal class FTPAssessmentExecutor(
         // Permission Check
         if (!hasRequiredPermissions()) {
             Log.w(TAG, "Missing required permissions for FTP Capture")
-            return Triple("Permission are required for FWA Capture", "FTP_PERMISSION_DENIED", 400)
+            return Triple("To continue network assessment, please allow all required permissions.", "FTP_PERMISSION_DENIED", 400)
         }
 
         // GPS Enable Check
         if (!CommonUtils.isGpsEnabled(appContext)) {
             Log.w(TAG, "GPS is disabled for FTP Capture")
-            return Triple("GPS disable please enable GPS", "FTP_GPS_DISABLED", 400)
+            return Triple("To continue network assessment, please enable GPS/location services.", "FTP_GPS_DISABLED", 400)
         }
 
         // Internet Connectivity Check
         if (!isInternetAvailable()) {
             Log.w(TAG, "No internet access for diagnostic capture")
             return Triple(
-                "Internet connectivity is mandatory for network assessment.",
+                "To continue network assessment, please enable mobile data.",
                 "FTP_INTERNET_UNAVAILABLE",
                 400
             )
@@ -238,7 +232,7 @@ internal class FTPAssessmentExecutor(
         if (isWifiConnected()) {
             Log.w(TAG, "Wi-Fi is connected, rejecting FTP Capture")
             return Triple(
-                "FWA Capture requires mobile data. Please disable Wi-Fi and ensure Banglalink 4G is active.",
+                "To continue network assessment, please turn off Wi-Fi and use Banglalink 4G internet.",
                 "FTP_WIFI_CONNECTED",
                 400
             )
@@ -248,7 +242,7 @@ internal class FTPAssessmentExecutor(
         if (!isMobileNetworkConnected()) {
             Log.w(TAG, "Mobile data not connected for diagnostic capture")
             return Triple(
-                "Mobile data connection is required for FWA Capture. Please enable mobile data.",
+                "To continue network assessment, please ensure your Banglalink 4G SIM and mobile data are active.",
                 "FTP_MOBILE_DATA_REQUIRED",
                 400
             )
@@ -258,7 +252,7 @@ internal class FTPAssessmentExecutor(
         if (!is4GConnected()) {
             Log.w(TAG, "Network is not 4G/LTE, rejecting FTP Capture")
             return Triple(
-                "4G/LTE connection is required for FWA Capture. Currently not on 4G.",
+                "To continue network assessment, please switch to the Banglalink 4G network.",
                 "FTP_4G_REQUIRED",
                 400
             )
@@ -268,7 +262,7 @@ internal class FTPAssessmentExecutor(
         if (!isBanglalinkDataEnabled()) {
             Log.w(TAG, "Banglalink data not active or SIM mismatch")
             return Triple(
-                "Banglalink SIM and mobile data must be enabled for FWA Capture.",
+                "To continue network assessment, please insert a Banglalink 4G SIM.",
                 "FTP_BANGLALINK_DATA_UNAVAILABLE",
                 400
             )
@@ -280,10 +274,9 @@ internal class FTPAssessmentExecutor(
     private fun hasRequiredPermissions(): Boolean {
         return ActivityCompat.checkSelfPermission(
             appContext, Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED ||
-                ActivityCompat.checkSelfPermission(
-                    appContext, Manifest.permission.ACCESS_COARSE_LOCATION
-                ) == PackageManager.PERMISSION_GRANTED
+        ) == PackageManager.PERMISSION_GRANTED || ActivityCompat.checkSelfPermission(
+            appContext, Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
     }
 
     private fun isInternetAvailable(): Boolean {
@@ -293,11 +286,12 @@ internal class FTPAssessmentExecutor(
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 val network = cm?.activeNetwork ?: return false
                 val caps = cm.getNetworkCapabilities(network) ?: return false
-                caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
-                        caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+                caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) && caps.hasCapability(
+                    NetworkCapabilities.NET_CAPABILITY_VALIDATED
+                )
             } else {
-                @Suppress("DEPRECATION")
-                val activeNetworkInfo = cm?.activeNetworkInfo ?: return false
+                @Suppress("DEPRECATION") val activeNetworkInfo =
+                    cm?.activeNetworkInfo ?: return false
                 activeNetworkInfo.isConnected
             }
         } catch (e: Exception) {
@@ -309,8 +303,7 @@ internal class FTPAssessmentExecutor(
         return try {
             val sm = SubscriptionManager.from(appContext)
             if (ActivityCompat.checkSelfPermission(
-                    appContext,
-                    Manifest.permission.READ_PHONE_STATE
+                    appContext, Manifest.permission.READ_PHONE_STATE
                 ) != PackageManager.PERMISSION_GRANTED
             ) {
                 return false
@@ -342,8 +335,7 @@ internal class FTPAssessmentExecutor(
     private suspend fun getAuth(): AuthEntity = databaseDao.getPersistentAuth() ?: AuthEntity()
 
     private fun enrichDataWithInput(
-        ftpData: FTPNetworkDataEntity,
-        input: FTPAssessmentExecutionInput
+        ftpData: FTPNetworkDataEntity, input: FTPAssessmentExecutionInput
     ) {
         ftpData.apply {
             msisdn = input.msisdn
@@ -360,8 +352,7 @@ internal class FTPAssessmentExecutor(
 
         try {
             val request = FTPCellInfoGetDataRequest(
-                auth = auth,
-                data = FTPCellInfoGetRequest(eNB = ftpData.enb, cID = ftpData.cid)
+                auth = auth, data = FTPCellInfoGetRequest(eNB = ftpData.enb, cID = ftpData.cid)
             )
             val response = apiService.postFTPCellInfo(request)
             if (response.statusCode == 200 && !response.data.isNullOrEmpty()) {
@@ -462,7 +453,7 @@ internal class FTPAssessmentExecutor(
                         lastUpdated = CommonUtils.getCurrentDate()
                         id = 1
                     }
-                    databaseDao.insertFTPThresholds(newThresholds?: FTPThresholdEntity())
+                    databaseDao.insertFTPThresholds(newThresholds ?: FTPThresholdEntity())
                     Log.i(TAG, "Thresholds sync successful")
                 }
             }
@@ -472,9 +463,7 @@ internal class FTPAssessmentExecutor(
     }
 
     private suspend fun logValidationFailure(
-        input: FTPAssessmentExecutionInput,
-        message: String,
-        errorCode: String
+        input: FTPAssessmentExecutionInput, message: String, errorCode: String
     ) {
         val auth = getAuth()
         val eventName = input.integratedAppEventName
@@ -494,9 +483,7 @@ internal class FTPAssessmentExecutor(
     }
 
     private suspend fun logError(
-        input: FTPAssessmentExecutionInput,
-        e: Exception,
-        eventName: String
+        input: FTPAssessmentExecutionInput, e: Exception, eventName: String
     ) {
         val auth = getAuth()
         var statusCode = 0
@@ -577,8 +564,7 @@ internal class FTPAssessmentExecutor(
             val telephonyManager =
                 appContext.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager
             val networkType = if (ActivityCompat.checkSelfPermission(
-                    appContext,
-                    Manifest.permission.READ_PHONE_STATE
+                    appContext, Manifest.permission.READ_PHONE_STATE
                 ) == PackageManager.PERMISSION_GRANTED
             ) {
                 telephonyManager?.dataNetworkType

@@ -104,8 +104,8 @@ class NetworkDataUploader {
                         checkPermissionHandler.isAllPermissionsGrantedExcludingGps()
 
                     val errorMessage = when {
-                        !isPermissionsGranted -> "Required permissions (Location or Phone State) are missing."
-                        !isGpsEnabled -> "GPS is disabled. Please enable GPS to proceed."
+                        !isPermissionsGranted -> "To continue network assessment, please allow all required permissions."
+                        !isGpsEnabled -> "To continue network assessment, please enable GPS/location services."
                         else -> "Required permissions are missing."
                     }
 
@@ -252,7 +252,8 @@ class NetworkDataUploader {
         hostAppName = applicationName
     )
 
-    private fun createSuccessStatus(networkDataResponse: NetworkDataResponse = NetworkDataResponse(
+    private fun createSuccessStatus(
+        networkDataResponse: NetworkDataResponse = NetworkDataResponse(
             status = "Failed", statusCode = 400, message = ""
         )
     ): UploadStatus {
