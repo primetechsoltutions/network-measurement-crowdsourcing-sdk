@@ -97,7 +97,7 @@ class NetworkCrowdSourcingDataUploader {
             requestPermission { isGranted ->
                 SdkContainer.coroutineScope?.launch {
                     val auth = createAuthEntity()
-                    SdkContainer.localCacheRepository?.saveAuth(auth)
+                    SdkContainer.dataFacade?.saveAuth(auth)
 
 
                     enqueueNetworkDataWork(

@@ -2,7 +2,7 @@ package com.ptsl.crowdsourcing_network_sdk.dl_ul_test
 
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
-import com.ptsl.crowdsourcing_network_sdk.repository.NetworkRepository
+import com.ptsl.crowdsourcing_network_sdk.repository.DataFacade
 
 import com.ptsl.crowdsourcing_network_sdk.data_model.BandWidth
 import com.ptsl.crowdsourcing_network_sdk.data_model.BandwidthTestResult
@@ -17,7 +17,7 @@ import java.nio.charset.StandardCharsets
 import kotlin.math.roundToInt
 
 
-internal class DownloadUploadHelper(private val networkRepo: NetworkRepository) {
+internal class DownloadUploadHelper(private val dataFacade: DataFacade) {
 
 
 
@@ -49,7 +49,7 @@ internal class DownloadUploadHelper(private val networkRepo: NetworkRepository) 
 
             try {
                 stopwatch.start()
-                val response = networkRepo.getBandwidthFile(networkType)
+                val response = dataFacade.getBandwidthFile(networkType)
 
                 if (response.isSuccessful) {
                     response.body()?.let { body ->
@@ -99,7 +99,7 @@ internal class DownloadUploadHelper(private val networkRepo: NetworkRepository) 
                         Gson().toJson(reqModel)
                     )
 
-                    val response = networkRepo.saveBandwidthFile(body)
+                    val response = dataFacade.saveBandwidthFile(body)
 
                     if (response.isSuccessful) {
                         stopwatch.stop()

@@ -8,9 +8,9 @@ import com.ptsl.crowdsourcing_network_sdk.api.NetworkModule
 import com.ptsl.crowdsourcing_network_sdk.db.NetworkDao
 import com.ptsl.crowdsourcing_network_sdk.db.NetworkDatabase
 import com.ptsl.crowdsourcing_network_sdk.dl_ul_test.DownloadUploadHelper
-import com.ptsl.crowdsourcing_network_sdk.repository.LocalCacheRepository
+import com.ptsl.crowdsourcing_network_sdk.repository.DataFacade
+import com.ptsl.crowdsourcing_network_sdk.repository.DataFacadeImpl
 import com.ptsl.crowdsourcing_network_sdk.repository.LocalCacheRepositoryImpl
-import com.ptsl.crowdsourcing_network_sdk.repository.NetworkRepository
 import com.ptsl.crowdsourcing_network_sdk.repository.NetworkRepositoryImpl
 import kotlinx.coroutines.CoroutineExceptionHandler
 
@@ -26,14 +26,8 @@ internal object SdkContainer {
     internal var downloadUploadHelper: DownloadUploadHelper? = null
         private set
 
-
-
-    internal var networkRepository: NetworkRepository? = null
+    internal var dataFacade: DataFacade? = null
         private set
-    internal var localCacheRepository: LocalCacheRepository? = null
-        private set
-
-
 
     @Volatile
     private var initialized = false
@@ -42,8 +36,7 @@ internal object SdkContainer {
             database != null &&
             coroutineScope != null &&
             downloadUploadHelper != null &&
-            networkRepository != null &&
-            localCacheRepository != null
+            dataFacade != null
 
 
 
@@ -74,12 +67,12 @@ internal object SdkContainer {
             
             val apiService = NetworkModule.apiService
             
-            // Initialize Repositories
-            localCacheRepository = LocalCacheRepositoryImpl(dao)
-            val networkRepo = NetworkRepositoryImpl(apiService)
-            networkRepository = networkRepo
+            // Initialize Repositories and Facade
+            val localCacheRepository = LocalCacheRepositoryImpl(dao)
+            val networkRepository = NetworkRepositoryImpl(apiService)
+            dataFacade = DataFacadeImpl(localCacheRepository, networkRepository)
 
-            downloadUploadHelper = DownloadUploadHelper(networkRepo)
+            downloadUploadHelper = DownloadUploadHelper(dataFacade!!)
 
             initialized = true
 
