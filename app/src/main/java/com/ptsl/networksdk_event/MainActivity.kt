@@ -6,7 +6,6 @@ import android.util.Log
 import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import com.ptsl.network_sdk.NetworkDataUploader
-import com.ptsl.network_sdk.UploadType
 import java.text.SimpleDateFormat
 import java.util.Locale
 
@@ -30,27 +29,18 @@ class MainActivity : AppCompatActivity() {
             "1.1.0-demo",
             currentDate,
             "MainActivity Capture FWA1",
-            uploadType = UploadType.NetworkDataCapture,
         ) { success, status ->
             // Print the full response to Logcat for debugging
             Log.d("SDK_RESONSE", "Status: $success, Message: ${status.response}")
         }
 
-        findViewById<View>(R.id.btn_call_sdk).setOnClickListener {
-            startMeasurement(UploadType.FTPNetworkDataCapture, "MainActivity Capture FWA1")
-        }
-
-        findViewById<View>(R.id.btn_call_sdk2).setOnClickListener {
-            startMeasurement(UploadType.FTPNetworkDataCapture, "MainActivity Capture FWA2")
-        }
-
         findViewById<View>(R.id.btn_call_sdk3).setOnClickListener {
-            startMeasurement(UploadType.NetworkDataCapture, "MainActivity Standard Capture")
+            startMeasurement("MainActivity Standard Capture")
         }
         findViewById<View>(R.id.btn_call_sdk4).setOnClickListener {
-            startMeasurement(UploadType.NetworkDataCapture, "MainActivity Standard Capture 1")
-            startMeasurement(UploadType.NetworkDataCapture, "MainActivity Standard Capture 2")
-            startMeasurement(UploadType.NetworkDataCapture, "MainActivity Standard Capture 2")
+            startMeasurement("MainActivity Standard Capture 1")
+            startMeasurement("MainActivity Standard Capture 2")
+            startMeasurement("MainActivity Standard Capture 2")
         }
 
         findViewById<View>(R.id.btn_open_viewpager).setOnClickListener {
@@ -64,17 +54,16 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun startMeasurement(uploadType: UploadType, eventName: String) {
+    private fun startMeasurement(eventName: String) {
         val currentDate =
-                SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
-                        .format(System.currentTimeMillis())
+            SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
+                .format(System.currentTimeMillis())
 
         networkDataUploader.startUploading(
-                "MYBL-1000111",
-                "1.1.0-demo",
-                currentDate,
-                eventName,
-                uploadType = uploadType
+            "MYBL-1000111",
+            "1.1.0-demo",
+            currentDate,
+            eventName,
         ) { success, status ->
             // Print the full response to Logcat for debugging
             Log.d("SDK_RESONSE", "Status: $success, Message: ${status.response}")

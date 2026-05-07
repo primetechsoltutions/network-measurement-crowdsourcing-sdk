@@ -3,7 +3,7 @@ package com.ptsl.network_sdk.utils
 import android.os.Build
 import android.util.Log
 import com.ptsl.network_sdk.data_model.entity.NetworkDataEntity
-import com.ptsl.network_sdk.dl_ul_test.DownloadUploadHelper
+import com.ptsl.network_sdk.bandwidth.DownloadUploadHelper
 import cz.mroczis.netmonster.core.model.cell.CellCdma
 import cz.mroczis.netmonster.core.model.cell.CellGsm
 import cz.mroczis.netmonster.core.model.cell.CellLte
@@ -18,9 +18,8 @@ import kotlinx.coroutines.ensureActive
 import kotlin.coroutines.coroutineContext
 import android.content.Context
 import android.telephony.TelephonyManager
-import com.ptsl.network_sdk.data_model.entity.FTPNetworkDataEntity
 
-suspend fun ICell.prepareDate(
+suspend fun ICell.prepareData(
     locationPair: Pair<Double, Double>,
     downloader: DownloadUploadHelper,
     hasMobileInternet: Boolean = false,
@@ -72,7 +71,7 @@ suspend fun ICell.prepareDate(
         this.latency = latency
         this.totalUploadVolume = speedPair.totalUploadMB
         this.totalDownloadVolume = speedPair.totalDownloadMB
-        this.band = this@prepareDate.band?.name ?: ""
+        this.band = this@prepareData.band?.name ?: ""
     }
 
     when (this) {
@@ -135,73 +134,6 @@ suspend fun ICell.prepareDate(
     return entity
 }
 
-suspend fun ICell.prepareFTPData(
-    locationPair: Pair<Double, Double>,
-    downloader: DownloadUploadHelper,
-    hasMobileInternet: Boolean = false,
-    activeNetworkMnc: String = "-1",
-): FTPNetworkDataEntity {
-    val mcc = this.network?.mcc
-    val mnc = this.network?.mnc
-    
-    val type = when (this) {
-        is CellGsm -> "2G"
-        is CellWcdma, is CellTdscdma -> "3G"
-        is CellLte -> "4G"
-        is CellNr -> "5G"
-        else -> "Unknown"
-    }
-
-    val speedPair = downloader.getBandWidthSpeed(
-        networkType = type,
-        hasMobileInternet = hasMobileInternet,
-        currentMnc = mnc,
-        activeNetworkMnc = activeNetworkMnc,
-        retryCountDownload = 2,
-        retryCountUpload = 2
-    )
-
-    return FTPNetworkDataEntity().apply {
-        this.date = CommonUtils.getCurrentDate()
-        this.mcc = mcc?.let { toIntSafe(it).toString() } ?: "0"
-        this.mnc = mnc?.let { toIntSafe(it).toString() } ?: "0"
-        this.technologyType = type
-        this.band = this@prepareFTPData.band?.name ?: ""
-        this.latitude = locationPair.first
-        this.longitude = locationPair.second
-        this.dlSpeed = speedPair.downloadSpeedKbps
-        this.ulSpeed = speedPair.uploadSpeedKbps
-        this.deviceManufacture = Build.MANUFACTURER
-        this.deviceModel = Build.MODEL
-        this.deviceOsVersion = Build.VERSION.SDK_INT.toString()
-        this.internetConnectivityType = if (hasMobileInternet) "Mobile" else "Wifi"
-        this.totalUploadVolume = speedPair.totalUploadMB
-        this.totalDownloadVolume = speedPair.totalDownloadMB
-
-        when (this@prepareFTPData) {
-            is CellGsm -> {
-                this.cid = toIntSafe(this@prepareFTPData.cid) ?: 0
-            }
-            is CellWcdma -> {
-                this.cid = toIntSafe(this@prepareFTPData.cid) ?: 0
-            }
-            is CellLte -> {
-                this.cid = toIntSafe(this@prepareFTPData.cid) ?: 0
-                this.enb = toIntSafe(this@prepareFTPData.enb) ?: 0
-                this.tac = toIntSafe(this@prepareFTPData.tac) ?: 0
-                this.rsrp = toIntSafe(this@prepareFTPData.signal.rsrp) ?: 0
-                this.rsrq = toIntSafe(this@prepareFTPData.signal.rsrq) ?: 0
-                this.snr = toIntSafe(this@prepareFTPData.signal.snr) ?: 0
-            }
-            is CellNr -> {
-                this.tac = toIntSafe(this@prepareFTPData.tac) ?: 0
-                this.rsrp = toIntSafe(this@prepareFTPData.signal.ssRsrp) ?: 0
-                this.rsrq = toIntSafe(this@prepareFTPData.signal.ssRsrq) ?: 0
-                this.snr = toIntSafe(this@prepareFTPData.signal.ssSinr) ?: 0
-            }
-        }
-    }
-}
 
 suspend fun ResponseBody?.getTotalBytes(): Int {
     var size = 0

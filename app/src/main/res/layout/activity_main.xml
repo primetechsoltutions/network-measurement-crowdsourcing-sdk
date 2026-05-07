@@ -15,20 +15,7 @@
         android:orientation="vertical"
         android:padding="24dp">
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btn_call_sdk"
-            android:layout_width="match_parent"
-            android:layout_height="64dp"
-            android:text="Call SDK FWA"
-            android:textAllCaps="false" />
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btn_call_sdk2"
-            android:layout_width="match_parent"
-            android:layout_height="64dp"
-            android:layout_marginTop="16dp"
-            android:text="Call SDK FWA2"
-            android:textAllCaps="false" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btn_call_sdk3"

@@ -7,7 +7,7 @@ import com.ptsl.network_sdk.api.ApiService
 import com.ptsl.network_sdk.api.NetworkModule
 import com.ptsl.network_sdk.db.NetworkDao
 import com.ptsl.network_sdk.db.NetworkDatabase
-import com.ptsl.network_sdk.dl_ul_test.DownloadUploadHelper
+import com.ptsl.network_sdk.bandwidth.DownloadUploadHelper
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -43,7 +43,7 @@ internal object SdkContainer {
                 appContext,
                 NetworkDatabase::class.java,
                 "network_db"
-            ).fallbackToDestructiveMigration().build()
+            ).fallbackToDestructiveMigration(true).build()
             dao = database?.networkDao()
 
             val exceptionHandler = CoroutineExceptionHandler { _, exception ->

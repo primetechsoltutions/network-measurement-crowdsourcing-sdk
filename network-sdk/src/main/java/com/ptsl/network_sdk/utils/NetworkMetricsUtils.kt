@@ -89,10 +89,10 @@ suspend fun calculateRttAndLatency(
 
             // ---------- RTT ----------
             val rttMs = when {
-                connectStartNs > 0 && connectEndNs > connectStartNs ->
+                connectStartNs > 0 && (connectEndNs > connectStartNs) ->
                     (connectEndNs - connectStartNs) / 1_000_000
 
-                requestEndNs > 0 && responseStartNs > requestEndNs ->
+                requestEndNs > 0 && (responseStartNs > requestEndNs) ->
                     ((responseStartNs - requestEndNs) / 2) / 1_000_000
 
                 else -> 0
@@ -100,7 +100,7 @@ suspend fun calculateRttAndLatency(
 
             // ---------- Latency (TTFB) ----------
             val rawLatencyMs =
-                if (requestEndNs > 0 && responseStartNs > requestEndNs)
+                if ((requestEndNs > 0) && (responseStartNs > requestEndNs))
                     (responseStartNs - requestEndNs) / 1_000_000
                 else 0
 

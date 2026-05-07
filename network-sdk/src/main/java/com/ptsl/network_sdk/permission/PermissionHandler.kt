@@ -1,4 +1,4 @@
-package com.ptsl.network_sdk.utils
+package com.ptsl.network_sdk.permission
 
 import android.Manifest
 import android.app.Activity
@@ -24,9 +24,8 @@ import java.util.Locale
 
 /**
  * Handles permission requests and GPS enablement prompts for the Network SDK.
- * Implements case-by-case logic for Standard (once-per-day) vs FTP (every-time) GPS prompts.
  */
-class CheckPermissionHandler private constructor(
+class PermissionHandler private constructor(
     private val activity: AppCompatActivity?, private val fragment: Fragment?
 ) {
 
@@ -72,11 +71,9 @@ class CheckPermissionHandler private constructor(
     }
 
     /**
-     * requests necessary permissions and GPS enablement.
-     * @param ignoreGpsLimit If true (FTP), GPS prompt shows every call.
-     *                       If false (Standard), GPS prompt shows once-per-day.
+     * Requests necessary permissions and GPS enablement.
      */
-    fun requestPermission(ignoreGpsLimit: Boolean = false, callback: (Boolean) -> Unit) {
+    fun requestPermission(callback: (Boolean) -> Unit) {
         if (isPermissionGranted()) {
             callback(true)
             return
@@ -89,11 +86,7 @@ class CheckPermissionHandler private constructor(
 
         // GPS Prompt Logic
         if (isAllPermissionsGrantedExcludingGps() && !isGpsEnabled()) {
-            if (ignoreGpsLimit) {
-                // Case-2: FTP capture - forced prompt every time
-                checkAndResolveLocationSettings(isForced = true, callback)
-            } else if (shouldShowGpsPrompt()) {
-                // Case-1: Standard capture - once a day
+            if (shouldShowGpsPrompt()) {
                 checkAndResolveLocationSettings(isForced = false, callback)
             } else {
                 finishRequest(callback)
@@ -101,10 +94,10 @@ class CheckPermissionHandler private constructor(
             return
         }
 
-        startPermissionFlow(ignoreGpsLimit, callback)
+        startPermissionFlow(callback)
     }
 
-    private fun startPermissionFlow(ignoreGpsLimit: Boolean, callback: (Boolean) -> Unit) {
+    private fun startPermissionFlow(callback: (Boolean) -> Unit) {
         val permissions = arrayOf(
             Manifest.permission.READ_PHONE_STATE,
             Manifest.permission.ACCESS_COARSE_LOCATION,
@@ -114,9 +107,7 @@ class CheckPermissionHandler private constructor(
         requestPermissions(permissions) { _ ->
             val allGranted = isAllPermissionsGrantedExcludingGps()
             if (allGranted && !isGpsEnabled()) {
-                if (ignoreGpsLimit) {
-                    checkAndResolveLocationSettings(isForced = true, callback)
-                } else if (shouldShowGpsPrompt()) {
+                if (shouldShowGpsPrompt()) {
                     checkAndResolveLocationSettings(isForced = false, callback)
                 } else {
                     finishRequest(callback)
@@ -174,7 +165,7 @@ class CheckPermissionHandler private constructor(
                     val exception = task.exception
                     if (exception is ResolvableApiException) {
                         Log.d(
-                            "CheckPermissionHandler",
+                            "PermissionHandler",
                             "Resolution required for GPS. Status: ${exception.statusCode}"
                         )
                         try {
@@ -186,14 +177,14 @@ class CheckPermissionHandler private constructor(
                                     android.os.Handler(android.os.Looper.getMainLooper())
                                         .postDelayed({
                                             Log.d(
-                                                "CheckPermissionHandler",
+                                                "PermissionHandler",
                                                 "GPS resolution successful, finishing request."
                                             )
                                             finishRequest(callback)
                                         }, 1000)
                                 } else {
                                     Log.d(
-                                        "CheckPermissionHandler",
+                                        "PermissionHandler",
                                         "GPS resolution cancelled or failed."
                                     )
                                     finishRequest(callback)
@@ -245,18 +236,26 @@ class CheckPermissionHandler private constructor(
     }
 
     fun isLocationPermissionGranted(): Boolean {
-        val ctx = safeContext ?: return false
-        return ContextCompat.checkSelfPermission(
-            ctx, Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED || ContextCompat.checkSelfPermission(
-            ctx, Manifest.permission.ACCESS_COARSE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
+        return safeContext?.let { isLocationPermissionGranted(it) } ?: false
     }
 
     fun isPhoneStatePermissionGranted(): Boolean {
-        val ctx = safeContext ?: return false
-        return ContextCompat.checkSelfPermission(
-            ctx, Manifest.permission.READ_PHONE_STATE
-        ) == PackageManager.PERMISSION_GRANTED
+        return safeContext?.let { isPhoneStatePermissionGranted(it) } ?: false
+    }
+
+    companion object {
+        fun isLocationPermissionGranted(context: Context): Boolean {
+            return ContextCompat.checkSelfPermission(
+                context, Manifest.permission.ACCESS_FINE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED || ContextCompat.checkSelfPermission(
+                context, Manifest.permission.ACCESS_COARSE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+        }
+
+        fun isPhoneStatePermissionGranted(context: Context): Boolean {
+            return ContextCompat.checkSelfPermission(
+                context, Manifest.permission.READ_PHONE_STATE
+            ) == PackageManager.PERMISSION_GRANTED
+        }
     }
 }

@@ -9,7 +9,6 @@ import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import com.ptsl.network_sdk.NetworkDataUploader
-import com.ptsl.network_sdk.UploadType
 import com.ptsl.networksdk_event.R
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -54,18 +53,32 @@ abstract class BaseSDKTestFragment : Fragment() {
             "1.1.0-demo",
             currentDate,
             "$fragmentName Capture",
-            uploadType = UploadType.FTPNetworkDataCapture
         ) { success, status ->
             activity?.runOnUiThread {
                 Log.d("SDK_RESPONSE", "$fragmentName Status: $success, Message: ${status.response}")
-                tvStatus.text = "Status: ${if (success) "Success" else "Failed"}\nMessage: ${status.response}"
+                tvStatus.text =
+                    "Status: ${if (success) "Success" else "Failed"}\nMessage: ${status.response}"
             }
         }
     }
 }
 
-class FragmentOne : BaseSDKTestFragment() { override val fragmentName = "Fragment 1" }
-class FragmentTwo : BaseSDKTestFragment() { override val fragmentName = "Fragment 2" }
-class FragmentThree : BaseSDKTestFragment() { override val fragmentName = "Fragment 3" }
-class FragmentFour : BaseSDKTestFragment() { override val fragmentName = "Fragment 4" }
-class FragmentFive : BaseSDKTestFragment() { override val fragmentName = "Fragment 5" }
+class FragmentOne : BaseSDKTestFragment() {
+    override val fragmentName = "Fragment 1"
+}
+
+class FragmentTwo : BaseSDKTestFragment() {
+    override val fragmentName = "Fragment 2"
+}
+
+class FragmentThree : BaseSDKTestFragment() {
+    override val fragmentName = "Fragment 3"
+}
+
+class FragmentFour : BaseSDKTestFragment() {
+    override val fragmentName = "Fragment 4"
+}
+
+class FragmentFive : BaseSDKTestFragment() {
+    override val fragmentName = "Fragment 5"
+}

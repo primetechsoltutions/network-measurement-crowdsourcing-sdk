@@ -17,7 +17,6 @@ import com.github.mikephil.charting.data.BarDataSet
 import com.github.mikephil.charting.data.BarEntry
 import com.github.mikephil.charting.utils.ColorTemplate
 import com.ptsl.network_sdk.NetworkDataUploader
-import com.ptsl.network_sdk.UploadType
 import com.ptsl.networksdk_event.R
 import java.text.SimpleDateFormat
 import java.util.*
@@ -32,9 +31,9 @@ class NetworkAssessmentFragment : Fragment() {
     private lateinit var speedChart: LineChart
 
     override fun onCreateView(
-            inflater: LayoutInflater,
-            container: ViewGroup?,
-            savedInstanceState: Bundle?
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
     ): View? {
         val view = inflater.inflate(R.layout.fragment_network_assessment, container, false)
 
@@ -57,30 +56,29 @@ class NetworkAssessmentFragment : Fragment() {
         }
 
         view.findViewById<Button>(R.id.event_1).setOnClickListener {
-            startMeasurement(UploadType.NetworkDataCapture, "Standard Capture")
+            startMeasurement("Standard Capture")
         }
 
         view.findViewById<Button>(R.id.event_2).setOnClickListener {
-            startMeasurement(UploadType.FTPNetworkDataCapture, "FTP Test")
+//            startMeasurement(UploadType.FTPNetworkDataCapture, "FTP Test")
         }
 
         return view
     }
 
-    private fun startMeasurement(uploadType: UploadType, eventName: String) {
+    private fun startMeasurement(eventName: String) {
         val currentDate =
-                SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
-                        .format(System.currentTimeMillis())
+            SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
+                .format(System.currentTimeMillis())
 
         loadingOverlay.visibility = View.VISIBLE
         resultTextView.text = "Starting $eventName. Please wait...\n"
 
         networkDataUploader.startUploading(
-                "MYBL-1000111",
-                "1.1.0-demo",
-                currentDate,
-                eventName,
-                uploadType = uploadType
+            "MYBL-1000111",
+            "1.1.0-demo",
+            currentDate,
+            eventName,
         ) { success, status ->
             // Print the full response to Logcat for debugging
             Log.d("SDK_RESONSE", "Status: $success, Message: ${status.response}")

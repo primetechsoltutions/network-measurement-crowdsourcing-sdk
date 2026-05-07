@@ -1,4 +1,4 @@
-package com.ptsl.network_sdk.dl_ul_test
+package com.ptsl.network_sdk.bandwidth
 
 class Stopwatch {
     private var startTime: Long = 0

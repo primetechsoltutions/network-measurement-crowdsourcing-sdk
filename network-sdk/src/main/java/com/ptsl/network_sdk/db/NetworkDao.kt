@@ -5,7 +5,6 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.ptsl.network_sdk.data_model.entity.AuthEntity
-import com.ptsl.network_sdk.data_model.entity.FTPThresholdEntity
 import com.ptsl.network_sdk.data_model.entity.NetworkDataEntity
 import com.ptsl.network_sdk.data_model.logger.EventLogModel
 
@@ -42,9 +41,4 @@ interface NetworkDao {
     @Query("SELECT COUNT(*) FROM eventlogmodel")
     suspend fun getNetworkDataLogEventCount(): Long
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertFTPThresholds(thresholds: FTPThresholdEntity)
-
-    @Query("SELECT * FROM ftpthresholdentity LIMIT 1")
-    suspend fun getFTPThresholds(): FTPThresholdEntity?
 }

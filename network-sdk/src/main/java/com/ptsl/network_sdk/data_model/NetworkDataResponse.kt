@@ -10,5 +10,4 @@ data class NetworkDataResponse (
     @SerializedName("testResult") val testResult: String? = null,
     @SerializedName("statusCode") val statusCode: Int? = null,
     @SerializedName("message") val message: String? = null,
-    @SerializedName("data") val data: AssessmentResult? = null
 )
