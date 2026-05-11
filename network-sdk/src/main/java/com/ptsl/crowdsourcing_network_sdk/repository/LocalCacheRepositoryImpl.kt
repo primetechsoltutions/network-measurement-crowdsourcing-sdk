@@ -15,7 +15,7 @@ internal class LocalCacheRepositoryImpl(
         dao.insertAuthData(auth)
     }
 
-    override suspend fun getNetworkData(): List<NetworkDataEntity> = dao.getNetworkData() ?: emptyList()
+    override suspend fun getNetworkData(): List<NetworkDataEntity> = dao.getNetworkData()
 
     override suspend fun insertNetworkData(data: List<NetworkDataEntity>) {
         if (data.isNotEmpty()) {
@@ -27,7 +27,7 @@ internal class LocalCacheRepositoryImpl(
         dao.deleteNetworkData()
     }
 
-    override suspend fun getEventLogs(): List<EventLogModel> = dao.getNetworkDataLogEvent() ?: emptyList()
+    override suspend fun getEventLogs(): List<EventLogModel> = dao.getNetworkDataLogEvent()
 
     override suspend fun insertEventLog(log: EventLogModel) {
         dao.insertNetworkDataLogIntoDB(log)
@@ -37,5 +37,5 @@ internal class LocalCacheRepositoryImpl(
         dao.deleteNetworkDataLogEvent()
     }
 
-    override suspend fun getEventLogCount(): Int = dao.getNetworkDataLogEventCount()
+    override suspend fun getEventLogCount(): Int = dao.getNetworkDataLogEventCount().toInt()
 }

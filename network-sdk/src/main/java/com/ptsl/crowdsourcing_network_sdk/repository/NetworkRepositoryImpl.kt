@@ -1,5 +1,6 @@
 package com.ptsl.crowdsourcing_network_sdk.repository
 
+import com.ptsl.crowdsourcing_network_sdk.data_model.BaseResponse
 import com.ptsl.crowdsourcing_network_sdk.api.ApiService
 import com.ptsl.crowdsourcing_network_sdk.data_model.NetworkDataRequest
 import com.ptsl.crowdsourcing_network_sdk.data_model.NetworkDataResponse
@@ -12,11 +13,11 @@ internal class NetworkRepositoryImpl(
     private val apiService: ApiService
 ) : NetworkRepository {
 
-    override suspend fun postNetworkData(request: NetworkDataRequest): Response<NetworkDataResponse> {
+    override suspend fun postNetworkData(request: NetworkDataRequest): Response<BaseResponse<NetworkDataResponse>> {
         return apiService.postNetworkData(request)
     }
 
-    override suspend fun postNetworkDataLogs(wrapper: LogDataWrapper): Response<Unit> {
+    override suspend fun postNetworkDataLogs(wrapper: LogDataWrapper): Response<BaseResponse<Any>> {
         return apiService.postNetworkDataLogs(wrapper)
     }
 

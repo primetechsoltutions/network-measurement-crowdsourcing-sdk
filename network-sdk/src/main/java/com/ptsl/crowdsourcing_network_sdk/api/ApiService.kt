@@ -2,6 +2,7 @@ package com.ptsl.crowdsourcing_network_sdk.api
 
 import com.ptsl.crowdsourcing_network_sdk.data_model.BaseResponse
 import com.ptsl.crowdsourcing_network_sdk.data_model.NetworkDataRequest
+import com.ptsl.crowdsourcing_network_sdk.data_model.NetworkDataResponse
 import com.ptsl.crowdsourcing_network_sdk.data_model.logger.LogDataWrapper
 import okhttp3.RequestBody
 import okhttp3.ResponseBody
@@ -14,10 +15,10 @@ import retrofit2.http.Query
 interface ApiService {
 
     @POST("v903/UnifiedNetworkSDK/save-network-event-sdk-data")
-    suspend fun postNetworkData(@Body request: NetworkDataRequest): BaseResponse<Any>
+    suspend fun postNetworkData(@Body request: NetworkDataRequest): Response<BaseResponse<NetworkDataResponse>>
 
     @POST("v903/UnifiedNetworkSDK/save-network-sdk-logs")
-    suspend fun postNetworkDataLogs(@Body request: LogDataWrapper): BaseResponse<Any>
+    suspend fun postNetworkDataLogs(@Body request: LogDataWrapper): Response<BaseResponse<Any>>
 
     @GET("NetworkMesurment/GetBandwithFile")
     suspend fun getBandwidthFile(@Query("Size") networkType: String?): Response<ResponseBody>
