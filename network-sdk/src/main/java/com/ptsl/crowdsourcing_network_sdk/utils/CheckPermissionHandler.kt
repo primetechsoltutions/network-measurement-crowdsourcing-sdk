@@ -1,9 +1,12 @@
 package com.ptsl.crowdsourcing_network_sdk.utils
 
 import android.Manifest
+import android.app.Activity
 import android.content.Context
 import android.content.pm.PackageManager
 import android.location.LocationManager
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import androidx.activity.result.ActivityResultCaller
 import androidx.activity.result.IntentSenderRequest
@@ -41,7 +44,7 @@ class CheckPermissionHandler private constructor(
 
     private var isRequestInProgress = false
     private var permissionCallback: ((Map<String, Boolean>) -> Unit)? = null
-    private var gpsCallback: (() -> Unit)? = null
+    private var gpsCallback: ((Boolean) -> Unit)? = null
 
     private val permissionLauncher = caller?.registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -51,8 +54,8 @@ class CheckPermissionHandler private constructor(
 
     private val gpsResolutionLauncher = caller?.registerForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult()
-    ) {
-        gpsCallback?.invoke()
+    ) {result ->
+        gpsCallback?.invoke(result.resultCode == Activity.RESULT_OK)
     }
 
     private fun canLaunchUi(): Boolean {
@@ -134,10 +137,10 @@ class CheckPermissionHandler private constructor(
         permissionLauncher?.launch(permissions)
     }
 
-    private fun resolveGps(intentSenderRequest: IntentSenderRequest, callback: () -> Unit) {
+    private fun resolveGps(intentSenderRequest: IntentSenderRequest, callback: (Boolean) -> Unit) {
         if (!canLaunchUi()) {
             resetInFlightFlagOnly()
-            callback()
+            callback(false)
             return
         }
         gpsCallback = callback
@@ -173,8 +176,23 @@ class CheckPermissionHandler private constructor(
                             val intentSenderRequest =
                                 IntentSenderRequest.Builder(exception.resolution.intentSender)
                                     .build()
-                            resolveGps(intentSenderRequest) {
-                                finishRequest(callback)
+                            resolveGps(intentSenderRequest) { isSuccess ->
+                                if (isSuccess) {
+                                    Handler(Looper.getMainLooper())
+                                        .postDelayed({
+                                            Log.d(
+                                                "CheckPermissionHandler",
+                                                "GPS resolution successful, finishing request."
+                                            )
+                                            finishRequest(callback)
+                                        }, 1000)
+                                } else {
+                                    Log.d(
+                                        "CheckPermissionHandler",
+                                        "GPS resolution cancelled or failed."
+                                    )
+                                    finishRequest(callback)
+                                }
                             }
                         } catch (_: Exception) {
                             finishRequest(callback)

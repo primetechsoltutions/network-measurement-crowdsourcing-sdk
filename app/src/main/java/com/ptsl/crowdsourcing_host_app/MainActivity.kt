@@ -20,7 +20,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // Initialize SDK with Activity context
-        sdk.init(this, "MYBL")
+        sdk.init(this, "CrowdDemoApp")
 
         setContent {
             FWASDKTheme {
