@@ -113,6 +113,7 @@ class NetworkCrowdSourcingDataUploader {
                     dispatchCallback(
                         callback, true, buildCrowdSourcingStatus(
                             NetworkDataResponse(
+                                status = "Success",
                                 statusCode = 200,
                                 message = "SDK Task enqueued"
                             )

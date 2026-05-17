@@ -8,6 +8,7 @@ import android.util.Log
 import androidx.core.app.ActivityCompat
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import com.ptsl.crowdsourcing_network_sdk.data_model.BandwidthTestResult
 import com.ptsl.crowdsourcing_network_sdk.data_model.NetworkDataRequest
 import com.ptsl.crowdsourcing_network_sdk.data_model.entity.AuthEntity
 import com.ptsl.crowdsourcing_network_sdk.data_model.entity.NetworkDataEntity
@@ -144,7 +145,7 @@ class NetworkDataWorker(
             val activeNetworkMnc = if (isMobileConnected) CommonUtils.getActiveNetworkMNC(applicationContext) else "-1"
 
             val metrics = calculateRttAndLatency(
-                hasMobileInternet = true, testUrl = "https://crsrcgz.banglalink.net"
+                hasMobileInternet = isMobileConnected, testUrl = "https://crsrcgz.banglalink.net"
             )
             Log.d(TAG, "Metrics captured: RTT=${metrics.rtt}ms, Latency=${metrics.latency}ms")
 
@@ -203,14 +204,21 @@ class NetworkDataWorker(
                     }
                     val retryCount = if (networkType == "4G") 2 else 1
 
-                    val speedPair = dl.getBandWidthSpeed(
-                        networkType = networkType,
-                        hasMobileInternet = isMobileConnected,
-                        currentMnc = mnc?.let { toIntSafe(it).toString() },
-                        activeNetworkMnc = activeNetworkMnc,
-                        retryCountDownload = retryCount,
-                        retryCountUpload = retryCount
-                    )
+                    val isCurrentCellActiveForData = isMobileConnected &&
+                            mnc != null &&
+                            activeNetworkMnc != "-1" &&
+                            toIntSafe(mnc)?.toString() == activeNetworkMnc.toIntOrNull()?.toString()
+
+                    val speedPair = if (isCurrentCellActiveForData) {
+                        dl.getBandWidthSpeed(
+                            networkType = networkType,
+                            hasMobileInternet = isMobileConnected,
+                            retryCountDownload = retryCount,
+                            retryCountUpload = retryCount
+                        )
+                    } else {
+                        BandwidthTestResult(0.0, 0.0, 0, 0)
+                    }
 
                     dataList.add(
                         cellDataMapper.mapToEntity(
