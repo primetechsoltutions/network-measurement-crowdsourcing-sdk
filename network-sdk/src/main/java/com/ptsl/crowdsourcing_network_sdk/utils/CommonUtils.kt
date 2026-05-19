@@ -6,6 +6,7 @@ import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.Build
 import android.telephony.SubscriptionManager
+import android.telephony.TelephonyManager
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -59,19 +60,55 @@ object CommonUtils {
         }
     }
 
-    fun getActiveNetworkMNC(context: Context): String  {
+    fun isWifiNetworkConnected(context: Context): Boolean {
+        return try {
+            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+            val network = cm?.activeNetwork ?: return false
+            val caps = cm.getNetworkCapabilities(network) ?: return false
+            caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    fun getActiveNetworkMNC(context: Context): String {
         var mnc = "-1"
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                val sm = SubscriptionManager.from(context)
-                val dataSubId = SubscriptionManager.getDefaultDataSubscriptionId()
-                if (dataSubId != SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
-                    val si = sm.getActiveSubscriptionInfo(dataSubId)
-                    mnc = si?.mnc?.toString() ?: "-1"
+            val tm = context.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager
+            if (tm != null) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    val dataSubId = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        SubscriptionManager.getActiveDataSubscriptionId()
+                    } else {
+                        SubscriptionManager.getDefaultDataSubscriptionId()
+                    }
+                    if (dataSubId != SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
+                        val subManager = tm.createForSubscriptionId(dataSubId)
+                        val operator = subManager.networkOperator
+                        if (!operator.isNullOrEmpty() && operator.length >= 3) {
+                            mnc = operator.substring(3)
+                        }
+                    }
+                }
+
+                // Fallback if mnc is still invalid/not set
+                if (mnc == "-1" || mnc.isEmpty()) {
+                    val operator = tm.networkOperator
+                    if (!operator.isNullOrEmpty() && operator.length >= 3) {
+                        mnc = operator.substring(3)
+                    }
                 }
             }
         } catch (_: Exception) { }
-        return "0${mnc}"
+
+        val cleanMnc = mnc.trim()
+        return if (cleanMnc == "-1") {
+            "-1"
+        } else if (cleanMnc.length == 1) {
+            "0$cleanMnc"
+        } else {
+            cleanMnc
+        }
     }
 
 }

@@ -41,7 +41,13 @@ internal class CellDataMapper {
             this.dlspeed = speedResult.downloadSpeedKbps
             this.ulspeed = speedResult.uploadSpeedKbps
             this.deviceModel = Build.MODEL
-            this.data = if (hasMobileInternet) "Mobile" else "Wifi"
+            this.data = if (CommonUtils.isMobileNetworkConnected(context)) {
+                "Mobile"
+            } else if (CommonUtils.isWifiNetworkConnected(context)) {
+                "Wifi"
+            } else {
+                "NA"
+            }
             this.isDataCaptureOffline = false
             this.isUserDeviceOnCall = isUserOnCall(context = context)
             this.deviceManufacture = Build.MANUFACTURER
