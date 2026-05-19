@@ -1,7 +1,7 @@
 package com.ptsl.crowdsourcing_network_sdk.utils
 
 import android.content.Context
-import android.util.Log
+import com.ptsl.crowdsourcing_network_sdk.utils.SdkLogger as Log
 import androidx.room.Room
 import com.ptsl.crowdsourcing_network_sdk.api.ApiService
 import com.ptsl.crowdsourcing_network_sdk.api.NetworkModule

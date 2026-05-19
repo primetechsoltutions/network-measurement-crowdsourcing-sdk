@@ -1,7 +1,7 @@
 package com.ptsl.crowdsourcing_network_sdk
 
 import android.content.Context
-import android.util.Log
+import com.ptsl.crowdsourcing_network_sdk.utils.SdkLogger as Log
 import androidx.appcompat.app.AppCompatActivity
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.LifecycleOwner

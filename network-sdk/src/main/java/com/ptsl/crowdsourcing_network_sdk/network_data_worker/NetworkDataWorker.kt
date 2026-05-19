@@ -4,7 +4,7 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
-import android.util.Log
+import com.ptsl.crowdsourcing_network_sdk.utils.SdkLogger as Log
 import androidx.core.app.ActivityCompat
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
@@ -108,7 +108,7 @@ class NetworkDataWorker(
                 else -> "Unexpected error: ${e.message}"
             }
 
-            Log.w(TAG, "⚠️ Upload failed, caching data locally: $errorMessage")
+            Log.w(TAG, "⚠️ Upload failed: $errorMessage")
 
 
             val eventLogModel = NetworkEventLogger.createNetworkRequestFailedLog(
