@@ -62,7 +62,7 @@ class NetworkDataWorker(
         var enrichedDataList: List<NetworkDataEntity> = emptyList()
         return try {
 
-            withTimeout(120000) {
+            withTimeout(30000) {
                 // 1. Fetch current location
                 val locationPair = if (CommonUtils.isGpsEnabled(applicationContext)) {
                     LocationHelper.getCurrentLocation(applicationContext)
