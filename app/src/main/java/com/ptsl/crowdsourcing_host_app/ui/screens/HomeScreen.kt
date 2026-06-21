@@ -2,7 +2,9 @@ package com.ptsl.crowdsourcing_host_app.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -23,12 +25,14 @@ import com.ptsl.crowdsourcing_host_app.ui.theme.*
 fun HomeScreen(
     navController: NavHostController,
     onSingleCapture: (String) -> Unit,
-    onTripleCapture: () -> Unit
+    onTripleCapture: () -> Unit,
+    onBackgroundServiceCapture: () -> Unit
 ) {
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(BgDark)
+            .verticalScroll(rememberScrollState())
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
@@ -95,6 +99,14 @@ fun HomeScreen(
                 icon = Icons.Default.PlayCircle,
                 color = AccentPurple,
                 onClick = onTripleCapture
+            )
+
+            ActionButton(
+                title = "Service Capture",
+                description = "Initialize SDK from a non-UI service",
+                icon = Icons.Default.Settings,
+                color = WarningOrange,
+                onClick = onBackgroundServiceCapture
             )
 
             // ViewPager Navigation Button

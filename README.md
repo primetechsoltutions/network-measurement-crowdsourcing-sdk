@@ -83,6 +83,36 @@ class HomeFragment : Fragment() {
 }
 ```
 
+### Background / Service Initialization
+Use the context-based init overload when the SDK is started from a service, worker, or other
+non-UI layer. This path never requests permissions and never shows GPS or permission UI. The host
+app must grant the required runtime permissions before calling it.
+
+```kotlin
+val networkDataUploader = NetworkCrowdSourcingDataUploader()
+val initStatus = networkDataUploader.init(
+    context = applicationContext,
+    applicationName = "MyBL_App"
+)
+
+if (initStatus.isSdkInit == true) {
+    networkDataUploader.startCrowdSourcingUploading(
+        msisdn = "01912345678",
+        integratedAppVersion = "1.0.0",
+        sdkInitiateTimeStamp = System.currentTimeMillis().toString(),
+        integratedAppEventName = "Background_Service_Event"
+    ) { success, status ->
+        Log.d("SDK", "Capture requested: $success ${status.response}")
+    }
+} else {
+    Log.e("SDK", "SDK init failed: ${initStatus.response}")
+}
+```
+
+If `ACCESS_FINE_LOCATION` or `ACCESS_COARSE_LOCATION` and `READ_PHONE_STATE` are unavailable, this
+init call returns a failed status with `statusCode = 403`. If location services/GPS are disabled,
+it returns `statusCode = 412`. The SDK does not trigger any UI interaction in this path.
+
 ### ❌ Incorrect Usage (Will cause crashes)
 ```kotlin
 // BAD: Initializing inside a click listener will crash!

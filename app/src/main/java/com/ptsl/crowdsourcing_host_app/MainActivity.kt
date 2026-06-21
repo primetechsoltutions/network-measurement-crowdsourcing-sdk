@@ -32,6 +32,9 @@ class MainActivity : AppCompatActivity() {
                     },
                     onTripleCapture = {
                         triggerTripleCapture()
+                    },
+                    onBackgroundServiceCapture = {
+                        triggerBackgroundServiceCapture()
                     }
                 )
             }
@@ -73,5 +76,10 @@ class MainActivity : AppCompatActivity() {
             
             Log.d(TAG, "Triple capture sequence completed")
         }
+    }
+
+    private fun triggerBackgroundServiceCapture() {
+        Log.d(TAG, "Starting background service SDK demo")
+        startService(BackgroundSdkDemoService.createIntent(this))
     }
 }

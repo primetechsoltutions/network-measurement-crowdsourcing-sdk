@@ -12,6 +12,7 @@ internal class LocalCacheRepositoryImpl(
     override suspend fun getAuth(): AuthEntity = dao.getPersistentAuth() ?: AuthEntity()
 
     override suspend fun saveAuth(auth: AuthEntity) {
+        dao.deleteAuthData()
         dao.insertAuthData(auth)
     }
 

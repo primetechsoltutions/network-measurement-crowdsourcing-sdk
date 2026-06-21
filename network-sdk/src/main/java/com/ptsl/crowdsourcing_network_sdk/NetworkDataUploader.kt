@@ -15,6 +15,7 @@ import com.ptsl.crowdsourcing_network_sdk.data_model.entity.AuthEntity
 import com.ptsl.crowdsourcing_network_sdk.network_data_worker.NetworkDataWorker
 import com.ptsl.crowdsourcing_network_sdk.network_data_worker.WorkerInputKeys
 import com.ptsl.crowdsourcing_network_sdk.utils.CheckPermissionHandler
+import com.ptsl.crowdsourcing_network_sdk.utils.CommonUtils
 
 import com.ptsl.crowdsourcing_network_sdk.utils.SdkContainer
 import kotlinx.coroutines.Dispatchers
@@ -27,8 +28,14 @@ import java.lang.ref.WeakReference
  * and enqueueing measurement tasks.
  */
 class NetworkCrowdSourcingDataUploader {
+    private enum class InitMode {
+        UI,
+        BACKGROUND
+    }
+
     private var activityRef: WeakReference<AppCompatActivity>? = null
     private var lifecycleOwnerRef: WeakReference<LifecycleOwner>? = null
+    private var initMode: InitMode? = null
     private lateinit var checkPermissionHandler: CheckPermissionHandler
     private lateinit var context: Context
     private lateinit var applicationName: String
@@ -46,6 +53,77 @@ class NetworkCrowdSourcingDataUploader {
         setup(activity, fragment, CheckPermissionHandler(fragment), applicationName)
     }
 
+    /**
+     * Initializes the SDK without binding to an Activity or Fragment.
+     *
+     * This flow is intended for host service/background layers. It validates required runtime
+     * permissions only and never attempts to request permissions or resolve GPS settings.
+     */
+    fun init(context: Context, applicationName: String): NetworkDataCrowdSourcingStatus {
+        initMode = null
+        val appContext = context.applicationContext
+        val validation = CheckPermissionHandler.validateRequiredPermissions(appContext)
+        if (!validation.isGranted) {
+            Log.e(
+                TAG,
+                "SDK background initialization failed. Missing permissions: ${validation.missingPermissions}"
+            )
+            return buildInitializationStatus(
+                appContext,
+                isInitialized = false,
+                NetworkDataResponse(
+                    status = "Failed",
+                    statusCode = 403,
+                    message = "Missing required permissions: ${validation.missingPermissions.joinToString()}"
+                )
+            )
+        }
+        if (!CommonUtils.isGpsEnabled(appContext)) {
+            Log.e(TAG, "SDK background initialization failed. Location services are disabled.")
+            return buildInitializationStatus(
+                appContext,
+                isInitialized = false,
+                NetworkDataResponse(
+                    status = "Failed",
+                    statusCode = 412,
+                    message = "Location services are disabled"
+                )
+            )
+        }
+
+        this.activityRef = null
+        this.lifecycleOwnerRef = null
+        this.context = appContext
+        this.applicationName = applicationName
+        this.initMode = InitMode.BACKGROUND
+        SdkContainer.init(appContext)
+
+        if (!SdkContainer.isInitialized()) {
+            initMode = null
+            Log.e(TAG, "SDK background initialization failed. Container was not initialized.")
+            return buildInitializationStatus(
+                appContext,
+                isInitialized = false,
+                NetworkDataResponse(
+                    status = "Failed",
+                    statusCode = 500,
+                    message = "SDK initialization failed"
+                )
+            )
+        }
+
+        Log.i(TAG, "SDK Initialized for $applicationName via background context")
+        return buildInitializationStatus(
+            appContext,
+            isInitialized = true,
+            NetworkDataResponse(
+                status = "Success",
+                statusCode = 200,
+                message = "SDK initialized"
+            )
+        )
+    }
+
     private fun setup(
         activity: AppCompatActivity,
         owner: LifecycleOwner,
@@ -57,6 +135,7 @@ class NetworkCrowdSourcingDataUploader {
         this.checkPermissionHandler = permissionHandler
         this.context = activity.applicationContext
         this.applicationName = appName
+        this.initMode = InitMode.UI
         SdkContainer.init(this.context)
         Log.i(TAG, "SDK Initialized for $appName via ${owner::class.java.simpleName}")
     }
@@ -78,7 +157,7 @@ class NetworkCrowdSourcingDataUploader {
         userLongitude: Double = 0.0,
         callback: (Boolean, NetworkDataCrowdSourcingStatus) -> Unit
     ) {
-        if (!this::checkPermissionHandler.isInitialized || !SdkContainer.isInitialized()) {
+        if (!isInitializedForStart()) {
             Log.e(TAG, "SDK not initialized. Call init() first.")
             callback(
                 false, NetworkDataCrowdSourcingStatus(
@@ -95,6 +174,21 @@ class NetworkCrowdSourcingDataUploader {
 
         try {
             requestPermission { isGranted ->
+                if (!isGranted) {
+                    dispatchCallback(
+                        callback,
+                        false,
+                        buildCrowdSourcingStatus(
+                            NetworkDataResponse(
+                                status = "Failed",
+                                statusCode = 403,
+                                message = "Required permissions are not available"
+                            )
+                        )
+                    )
+                    return@requestPermission
+                }
+
                 SdkContainer.coroutineScope?.launch {
                     val auth = createAuthEntity()
                     SdkContainer.dataFacade?.saveAuth(auth)
@@ -141,7 +235,13 @@ class NetworkCrowdSourcingDataUploader {
     private fun dispatchCallback(
         callback: (Boolean, NetworkDataCrowdSourcingStatus) -> Unit, success: Boolean, status: NetworkDataCrowdSourcingStatus
     ) {
-        SdkContainer.coroutineScope?.launch {
+        val scope = SdkContainer.coroutineScope
+        if (scope == null) {
+            callback(success, status)
+            return
+        }
+
+        scope.launch {
             withContext(Dispatchers.Main) {
                 if (!isLifecycleOwnerValid()) return@withContext
                 callback(success, status)
@@ -150,6 +250,8 @@ class NetworkCrowdSourcingDataUploader {
     }
 
     private fun isLifecycleOwnerValid(): Boolean {
+        if (initMode == InitMode.BACKGROUND) return true
+
         val activity = activityRef?.get()
         if (activity == null || activity.isFinishing || activity.isDestroyed) {
             Log.w(TAG, "Host Activity is no longer valid. Skipping callback.")
@@ -176,9 +278,9 @@ class NetworkCrowdSourcingDataUploader {
 
     private fun createAuthEntity() = AuthEntity(
         sdkVersion = BuildConfig.SdkVersion,
-        isSdkInitialized = this::checkPermissionHandler.isInitialized,
-        isLocationEnabled = checkPermissionHandler.isLocationPermissionGranted() && checkPermissionHandler.isGpsEnabled(),
-        isPhoneStateEnabled = checkPermissionHandler.isPhoneStatePermissionGranted(),
+        isSdkInitialized = isInitializedForStart(),
+        isLocationEnabled = isLocationPermissionGranted() && isGpsEnabled(),
+        isPhoneStateEnabled = isPhoneStatePermissionGranted(),
         hostAppName = applicationName
     )
 
@@ -188,9 +290,9 @@ class NetworkCrowdSourcingDataUploader {
         )
     ): NetworkDataCrowdSourcingStatus {
         return NetworkDataCrowdSourcingStatus(
-            isSdkInit = this::checkPermissionHandler.isInitialized,
-            isLocationEnabled = checkPermissionHandler.isLocationPermissionGranted(),
-            isPhoneStateGranted = checkPermissionHandler.isPhoneStatePermissionGranted(),
+            isSdkInit = isInitializedForStart(),
+            isLocationEnabled = isLocationPermissionGranted(),
+            isPhoneStateGranted = isPhoneStatePermissionGranted(),
             response = gson.toJson(networkDataResponse)
         )
     }
@@ -198,14 +300,90 @@ class NetworkCrowdSourcingDataUploader {
 
     /** Internal helper to request necessary permissions. */
     private fun requestPermission(callback: (Boolean) -> Unit) {
-        if (this::checkPermissionHandler.isInitialized) {
-            if (checkPermissionHandler.isPermissionGranted()) {
-                callback(true)
-            } else {
-                checkPermissionHandler.requestPermission(callback = callback)
+        when (initMode) {
+            InitMode.BACKGROUND -> {
+                callback(
+                    CheckPermissionHandler.validateRequiredPermissions(context).isGranted &&
+                            CommonUtils.isGpsEnabled(context)
+                )
             }
-        } else {
-            callback(false)
+
+            InitMode.UI -> {
+                if (!this::checkPermissionHandler.isInitialized) {
+                    callback(false)
+                } else if (checkPermissionHandler.isPermissionGranted()) {
+                    callback(true)
+                } else {
+                    checkPermissionHandler.requestPermission(callback = callback)
+                }
+            }
+
+            null -> {
+                callback(false)
+            }
+        }
+    }
+
+    private fun isInitializedForStart(): Boolean {
+        return initMode != null && this::context.isInitialized && SdkContainer.isInitialized()
+    }
+
+    private fun buildInitializationStatus(
+        context: Context,
+        isInitialized: Boolean,
+        networkDataResponse: NetworkDataResponse
+    ): NetworkDataCrowdSourcingStatus {
+        return NetworkDataCrowdSourcingStatus(
+            isSdkInit = isInitialized,
+            isLocationEnabled = isLocationPermissionGranted(context),
+            isPhoneStateGranted = isPhoneStatePermissionGranted(context),
+            response = gson.toJson(networkDataResponse)
+        )
+    }
+
+    private fun isLocationPermissionGranted(): Boolean {
+        return when {
+            initMode == InitMode.UI && this::checkPermissionHandler.isInitialized ->
+                checkPermissionHandler.isLocationPermissionGranted()
+
+            this::context.isInitialized -> isLocationPermissionGranted(context)
+            else -> false
+        }
+    }
+
+    private fun isPhoneStatePermissionGranted(): Boolean {
+        return when {
+            initMode == InitMode.UI && this::checkPermissionHandler.isInitialized ->
+                checkPermissionHandler.isPhoneStatePermissionGranted()
+
+            this::context.isInitialized -> isPhoneStatePermissionGranted(context)
+            else -> false
+        }
+    }
+
+    private fun isGpsEnabled(): Boolean {
+        return when {
+            initMode == InitMode.UI && this::checkPermissionHandler.isInitialized ->
+                checkPermissionHandler.isGpsEnabled()
+
+            this::context.isInitialized -> CommonUtils.isGpsEnabled(context)
+
+            else -> false
+        }
+    }
+
+    private fun isLocationPermissionGranted(context: Context): Boolean {
+        val validation = CheckPermissionHandler.validateRequiredPermissions(context)
+        return validation.missingPermissions.none {
+            it == android.Manifest.permission.ACCESS_FINE_LOCATION ||
+                    it == android.Manifest.permission.ACCESS_COARSE_LOCATION
+        }
+    }
+
+    private fun isPhoneStatePermissionGranted(context: Context): Boolean {
+        val validation = CheckPermissionHandler.validateRequiredPermissions(context)
+        return validation.missingPermissions.none {
+            it == android.Manifest.permission.READ_PHONE_STATE
         }
     }
 
@@ -242,4 +420,3 @@ class NetworkCrowdSourcingDataUploader {
         }
     }
 }
-

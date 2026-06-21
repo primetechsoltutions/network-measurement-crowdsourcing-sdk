@@ -23,6 +23,9 @@ interface NetworkDao {
     @Query("SELECT * FROM authentity")
     suspend fun getPersistentAuth(): AuthEntity?
 
+    @Query("DELETE FROM authentity")
+    suspend fun deleteAuthData()
+
     @Query("SELECT * FROM networkdataentity")
     suspend fun getNetworkData(): List<NetworkDataEntity>
 

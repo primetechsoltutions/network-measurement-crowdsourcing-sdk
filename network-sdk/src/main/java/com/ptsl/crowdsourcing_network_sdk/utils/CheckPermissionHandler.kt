@@ -4,7 +4,6 @@ import android.Manifest
 import android.app.Activity
 import android.content.Context
 import android.content.pm.PackageManager
-import android.location.LocationManager
 import android.os.Handler
 import android.os.Looper
 import com.ptsl.crowdsourcing_network_sdk.utils.SdkLogger as Log
@@ -36,6 +35,44 @@ class CheckPermissionHandler private constructor(
 
     constructor(activity: AppCompatActivity) : this(activity, null)
     constructor(fragment: Fragment) : this(null, fragment)
+
+    data class PermissionValidationResult(
+        val isGranted: Boolean,
+        val missingPermissions: List<String> = emptyList()
+    )
+
+    companion object {
+        fun validateRequiredPermissions(context: Context): PermissionValidationResult {
+            val appContext = context.applicationContext
+            val missingPermissions = mutableListOf<String>()
+
+            val hasFineLocation = ContextCompat.checkSelfPermission(
+                appContext,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+            val hasCoarseLocation = ContextCompat.checkSelfPermission(
+                appContext,
+                Manifest.permission.ACCESS_COARSE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+            val hasPhoneState = ContextCompat.checkSelfPermission(
+                appContext,
+                Manifest.permission.READ_PHONE_STATE
+            ) == PackageManager.PERMISSION_GRANTED
+
+            if (!hasFineLocation && !hasCoarseLocation) {
+                missingPermissions.add(Manifest.permission.ACCESS_FINE_LOCATION)
+                missingPermissions.add(Manifest.permission.ACCESS_COARSE_LOCATION)
+            }
+            if (!hasPhoneState) {
+                missingPermissions.add(Manifest.permission.READ_PHONE_STATE)
+            }
+
+            return PermissionValidationResult(
+                isGranted = missingPermissions.isEmpty(),
+                missingPermissions = missingPermissions
+            )
+        }
+    }
 
     private val caller: ActivityResultCaller? = activity ?: fragment
 

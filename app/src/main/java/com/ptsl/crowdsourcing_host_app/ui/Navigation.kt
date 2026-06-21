@@ -22,7 +22,8 @@ sealed class Screen(val route: String) {
 fun AppNavigation(
     navController: NavHostController,
     onStartCrowdsourcing: (String, String) -> Unit,
-    onTripleCapture: () -> Unit
+    onTripleCapture: () -> Unit,
+    onBackgroundServiceCapture: () -> Unit
 ) {
     NavHost(navController = navController, startDestination = Screen.Home.route) {
         composable(Screen.Home.route) {
@@ -31,7 +32,8 @@ fun AppNavigation(
                 onSingleCapture = { eventName ->
                     onStartCrowdsourcing(eventName, "NetworkDataCapture")
                 },
-                onTripleCapture = onTripleCapture
+                onTripleCapture = onTripleCapture,
+                onBackgroundServiceCapture = onBackgroundServiceCapture
             )
         }
         
