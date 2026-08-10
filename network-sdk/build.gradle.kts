@@ -10,7 +10,7 @@ plugins {
     id("maven-publish")
 }
 
-version = project.findProperty("SdkVersion") as String? ?: "1.0.0"
+version = project.findProperty("SdkVersion") as String? ?: "1.0.1"
 
 android {
     namespace = "com.ptsl.crowdsourcing_network_sdk"

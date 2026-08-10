@@ -93,13 +93,12 @@ class NetworkDataWorker(
 
                 Result.success()
             }
-        }
-        catch (e: Exception) {
+        } catch (e: Exception) {
             var statusCode = 0
             val errorMessage = when (e) {
                 is HttpException -> {
                     statusCode = e.code()
-                    val errorBody= e.response()?.errorBody()?.string()
+                    val errorBody = e.response()?.errorBody()?.string()
                     "HTTP error: ${e.code()} ${e.message}${if (errorBody != null) " | Body: $errorBody" else ""}"
                 }
 
@@ -142,10 +141,12 @@ class NetworkDataWorker(
     ): ArrayList<NetworkDataEntity> {
         return try {
             val isMobileConnected = CommonUtils.isMobileNetworkConnected(applicationContext)
-            val activeNetworkMnc = if (isMobileConnected) CommonUtils.getActiveNetworkMNC(applicationContext) else "-1"
+            val activeNetworkMnc =
+                if (isMobileConnected) CommonUtils.getActiveNetworkMNC(applicationContext) else "-1"
 
             val metrics = calculateRttAndLatency(
-                hasMobileInternet = isMobileConnected, testUrl = "https://crsrcgz.banglalink.net"
+                hasMobileInternet = isMobileConnected,
+                testUrl = "https://banglalink-ftp.fiberathomeglobal.net/latency"
             )
             Log.d(TAG, "Metrics captured: RTT=${metrics.rtt}ms, Latency=${metrics.latency}ms")
 
@@ -161,7 +162,13 @@ class NetworkDataWorker(
                 handleCellFetchFailure(auth, input, permissionException)
                 arrayListOf(createFallbackNetworkData(metrics, isMobileConnected))
             } else {
-                processPrimaryCells(cells, locationPair, isMobileConnected, activeNetworkMnc, metrics)
+                processPrimaryCells(
+                    cells,
+                    locationPair,
+                    isMobileConnected,
+                    activeNetworkMnc,
+                    metrics
+                )
             }
         } catch (e: Exception) {
             handleDataFetchException(e, auth, input)
@@ -216,14 +223,20 @@ class NetworkDataWorker(
                     }
                     val retryCount = if (networkType == "4G") 2 else 1
 
-                    Log.e(TAG,"MNC:$mnc,networkType:$networkType,activeNetworkMnc:$activeNetworkMnc")
+                    Log.e(
+                        TAG,
+                        "MNC:$mnc,networkType:$networkType,activeNetworkMnc:$activeNetworkMnc"
+                    )
                     val isCurrentCellActiveForData = isMobileConnected &&
                             mnc != null &&
                             activeNetworkMnc != "-1" &&
                             toIntSafe(mnc)?.toString() == activeNetworkMnc.toIntOrNull()?.toString()
 
 
-                    Log.e(TAG,"MNC:$mnc,networkType:$networkType,isCurrentCellActiveForData: $isCurrentCellActiveForData ,isMobileConnected:$isMobileConnected")
+                    Log.e(
+                        TAG,
+                        "MNC:$mnc,networkType:$networkType,isCurrentCellActiveForData: $isCurrentCellActiveForData ,isMobileConnected:$isMobileConnected"
+                    )
 
                     val speedPair = if (isCurrentCellActiveForData) {
                         dl.getBandWidthSpeed(
@@ -254,7 +267,11 @@ class NetworkDataWorker(
         return dataList
     }
 
-    private suspend fun handleCellFetchFailure(auth: AuthEntity, input: WorkerInputData, exception: Exception?) {
+    private suspend fun handleCellFetchFailure(
+        auth: AuthEntity,
+        input: WorkerInputData,
+        exception: Exception?
+    ) {
         val eventLogModel = NetworkEventLogger.createPermissionMissingLog(
             auth.hostAppName,
             input.integratedAppEventName,
@@ -297,7 +314,11 @@ class NetworkDataWorker(
         )
     }
 
-    private suspend fun handleDataFetchException(e: Exception, auth: AuthEntity, input: WorkerInputData) {
+    private suspend fun handleDataFetchException(
+        e: Exception,
+        auth: AuthEntity,
+        input: WorkerInputData
+    ) {
         val eventLogModel = NetworkEventLogger.createNetworkDataFetchFailedLog(
             auth.hostAppName,
             input.integratedAppEventName,
