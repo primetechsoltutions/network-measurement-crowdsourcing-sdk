@@ -4,10 +4,11 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
-import android.util.Log
+import com.ptsl.crowdsourcing_network_sdk.utils.SdkLogger as Log
 import androidx.core.app.ActivityCompat
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import com.ptsl.crowdsourcing_network_sdk.data_model.BandwidthTestResult
 import com.ptsl.crowdsourcing_network_sdk.data_model.NetworkDataRequest
 import com.ptsl.crowdsourcing_network_sdk.data_model.entity.AuthEntity
 import com.ptsl.crowdsourcing_network_sdk.data_model.entity.NetworkDataEntity
@@ -61,7 +62,7 @@ class NetworkDataWorker(
         var enrichedDataList: List<NetworkDataEntity> = emptyList()
         return try {
 
-            withTimeout(60_000L) {
+            withTimeout(30000) {
                 // 1. Fetch current location
                 val locationPair = if (CommonUtils.isGpsEnabled(applicationContext)) {
                     LocationHelper.getCurrentLocation(applicationContext)
@@ -107,7 +108,7 @@ class NetworkDataWorker(
                 else -> "Unexpected error: ${e.message}"
             }
 
-            Log.w(TAG, "⚠️ Upload failed, caching data locally: $errorMessage")
+            Log.w(TAG, "⚠️ Upload failed: $errorMessage")
 
 
             val eventLogModel = NetworkEventLogger.createNetworkRequestFailedLog(
@@ -144,7 +145,7 @@ class NetworkDataWorker(
             val activeNetworkMnc = if (isMobileConnected) CommonUtils.getActiveNetworkMNC(applicationContext) else "-1"
 
             val metrics = calculateRttAndLatency(
-                hasMobileInternet = true, testUrl = "https://crsrcgz.banglalink.net"
+                hasMobileInternet = isMobileConnected, testUrl = "https://crsrcgz.banglalink.net"
             )
             Log.d(TAG, "Metrics captured: RTT=${metrics.rtt}ms, Latency=${metrics.latency}ms")
 
@@ -169,17 +170,29 @@ class NetworkDataWorker(
     }
 
     private fun fetchNetworkCells(): List<cz.mroczis.netmonster.core.model.cell.ICell>? {
-        val hasPermission = ActivityCompat.checkSelfPermission(
+        val hasLocationPermission = ActivityCompat.checkSelfPermission(
             applicationContext, Manifest.permission.ACCESS_FINE_LOCATION
         ) == PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(
             applicationContext, Manifest.permission.ACCESS_COARSE_LOCATION
         ) == PackageManager.PERMISSION_GRANTED
 
-        return if (hasPermission) {
-            NetMonsterFactory.get(applicationContext).getCells()
-        } else {
-            throw SecurityException("Missing location permission")
+        val hasPhoneStatePermission = ActivityCompat.checkSelfPermission(
+            applicationContext, Manifest.permission.READ_PHONE_STATE
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (!hasLocationPermission) {
+            throw SecurityException("Missing Location on permission")
         }
+        if (!hasPhoneStatePermission) {
+            throw SecurityException("Missing phone state permission")
+        }
+
+        val hasGPS = CommonUtils.isGpsEnabled(applicationContext)
+        if (!hasGPS) {
+            throw SecurityException("GPS is Disable")
+        }
+
+        return NetMonsterFactory.get(applicationContext).getCells()
     }
 
     private suspend fun processPrimaryCells(
@@ -203,14 +216,25 @@ class NetworkDataWorker(
                     }
                     val retryCount = if (networkType == "4G") 2 else 1
 
-                    val speedPair = dl.getBandWidthSpeed(
-                        networkType = networkType,
-                        hasMobileInternet = isMobileConnected,
-                        currentMnc = mnc?.let { toIntSafe(it).toString() },
-                        activeNetworkMnc = activeNetworkMnc,
-                        retryCountDownload = retryCount,
-                        retryCountUpload = retryCount
-                    )
+                    Log.e(TAG,"MNC:$mnc,networkType:$networkType,activeNetworkMnc:$activeNetworkMnc")
+                    val isCurrentCellActiveForData = isMobileConnected &&
+                            mnc != null &&
+                            activeNetworkMnc != "-1" &&
+                            toIntSafe(mnc)?.toString() == activeNetworkMnc.toIntOrNull()?.toString()
+
+
+                    Log.e(TAG,"MNC:$mnc,networkType:$networkType,isCurrentCellActiveForData: $isCurrentCellActiveForData ,isMobileConnected:$isMobileConnected")
+
+                    val speedPair = if (isCurrentCellActiveForData) {
+                        dl.getBandWidthSpeed(
+                            networkType = networkType,
+                            hasMobileInternet = isMobileConnected,
+                            retryCountDownload = retryCount,
+                            retryCountUpload = retryCount
+                        )
+                    } else {
+                        BandwidthTestResult(0.0, 0.0, 0, 0)
+                    }
 
                     dataList.add(
                         cellDataMapper.mapToEntity(
@@ -251,10 +275,17 @@ class NetworkDataWorker(
         metrics: NetworkMetrics,
         isMobileConnected: Boolean
     ): NetworkDataEntity {
+        val connectionType = if (isMobileConnected) {
+            "Mobile"
+        } else if (CommonUtils.isWifiNetworkConnected(applicationContext)) {
+            "Wifi"
+        } else {
+            "NA"
+        }
         return NetworkDataEntity(
             lattitude = 0.0,
             longitude = 0.0,
-            data = if (isMobileConnected) "Mobile" else "Wifi",
+            data = connectionType,
             usedSimSlot = CommonUtils.getSimCount(applicationContext),
             rtt = CommonUtils.round2(metrics.rtt),
             latency = CommonUtils.round2(metrics.latency),

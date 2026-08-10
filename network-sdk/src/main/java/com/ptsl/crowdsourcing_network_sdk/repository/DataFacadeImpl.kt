@@ -40,6 +40,7 @@ internal class DataFacadeImpl(
         } catch (e: Exception) {
             // On failure, cache the fresh data
             if (freshData.isNotEmpty()) {
+                freshData.forEach { it.isDataCaptureOffline = true }
                 localCache.insertNetworkData(freshData)
             }
             throw e

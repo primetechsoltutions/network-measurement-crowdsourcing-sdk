@@ -7,7 +7,7 @@ import android.content.pm.PackageManager
 import android.location.LocationManager
 import android.os.Handler
 import android.os.Looper
-import android.util.Log
+import com.ptsl.crowdsourcing_network_sdk.utils.SdkLogger as Log
 import androidx.activity.result.ActivityResultCaller
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts

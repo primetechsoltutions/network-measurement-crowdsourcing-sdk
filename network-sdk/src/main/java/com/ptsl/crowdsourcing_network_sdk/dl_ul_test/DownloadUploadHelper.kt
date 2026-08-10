@@ -26,11 +26,9 @@ internal class DownloadUploadHelper(private val dataFacade: DataFacade) {
         retryCountDownload: Int = 1,
         retryCountUpload: Int = 1,
         hasMobileInternet: Boolean = false,
-        currentMnc: String?,
-        activeNetworkMnc: String = "-1"
     ): BandwidthTestResult {
 
-        if (!hasMobileInternet || currentMnc?.toIntOrNull() != activeNetworkMnc.toIntOrNull()) {
+        if (!hasMobileInternet) {
             return BandwidthTestResult(0.0, 0.0, 0, 0)
         }
 

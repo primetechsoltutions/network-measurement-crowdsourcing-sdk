@@ -1,16 +1,5 @@
 package com.ptsl.crowdsourcing_network_sdk.utils
 
-import android.os.Build
-import android.util.Log
-import com.ptsl.crowdsourcing_network_sdk.data_model.entity.NetworkDataEntity
-import com.ptsl.crowdsourcing_network_sdk.dl_ul_test.DownloadUploadHelper
-import cz.mroczis.netmonster.core.model.cell.CellCdma
-import cz.mroczis.netmonster.core.model.cell.CellGsm
-import cz.mroczis.netmonster.core.model.cell.CellLte
-import cz.mroczis.netmonster.core.model.cell.CellNr
-import cz.mroczis.netmonster.core.model.cell.CellTdscdma
-import cz.mroczis.netmonster.core.model.cell.CellWcdma
-import cz.mroczis.netmonster.core.model.cell.ICell
 import okhttp3.ResponseBody
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
